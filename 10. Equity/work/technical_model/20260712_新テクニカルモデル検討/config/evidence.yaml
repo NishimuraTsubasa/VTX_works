@@ -1,0 +1,23 @@
+evidence_priors:
+  persistence: 0.25
+  correction: 0.10
+  volatility_support: 0.15
+  flow: 0.15
+  relative_strength: 0.20
+  intermarket: 0.10
+  macro_market: 0.05
+
+signal_priors:
+  persistence:
+    ret20_pct: 0.20
+    ret60_pct: 0.25
+    ret120_pct: 0.15
+    ma_gap60_pct: 0.15
+    ma_slope60_pct: 0.10
+    breakout120_pct: 0.15
+  volatility_support:
+    rv20_pct_inverse: 0.30
+    vol_ratio_pct_inverse: 0.20
+    atr_pct_inverse: 0.15
+    vix_pct_inverse: 0.25
+    move_pct_inverse: 0.10

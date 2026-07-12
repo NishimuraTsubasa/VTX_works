@@ -1,0 +1,4 @@
+﻿index_name,in_constituents,in_sector_weights,in_futures_returns,usable_full_pipeline
+EU_INDEX,True,True,True,True
+JP_INDEX,True,True,True,True
+US_INDEX,True,True,True,True

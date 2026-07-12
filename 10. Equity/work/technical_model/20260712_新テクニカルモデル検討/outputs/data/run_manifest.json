@@ -1,0 +1,8 @@
+{
+  "latest_date": "2026-05-29",
+  "attention_asset": "NKY",
+  "pdf": "outputs/report/Model_Report.pdf",
+  "excel": "outputs/summary/Summary.xlsx",
+  "dummy_data": true,
+  "temporal_model": "Transformer-style temporal patch attention surrogate for demo; TFT/PatchTST adapter in production."
+}

@@ -1,0 +1,118 @@
+project:
+  output_dir: outputs
+  random_seed: 42
+  log_level: INFO
+
+data:
+  factors_file: data/input/factors_and_returns.xlsx
+  factors_sheet: data
+  constituents_file: data/input/index_constituents.xlsx
+  sector_weights_file: data/input/index_sector_weights.xlsx
+  sector_weights_sheet: sector_weights
+  futures_file: data/input/futures_returns.xlsx
+  frequency: monthly        # monthly or weekly
+  futures_sheet_map:
+    monthly: monthly_returns
+    weekly: weekly_returns
+  ignore_constituent_sheets: [README]
+  index_country_map:
+    JP_INDEX: Japan
+    US_INDEX: United States
+    EU_INDEX: Europe
+
+columns:
+  date: date
+  isin: ISIN
+  stock_return: stock_return
+  sector: sector
+  country: country
+  market_cap: market_cap
+  constituent_weight: constituent_weight
+  effective_date: effective_date
+  sector_weights_sector: sector
+
+target:
+  # contemporaneous_to_forward means the return recorded at t+1 is used as the target for factors at t.
+  # Set already_forward if the input column already contains forward returns aligned to factor date.
+  stock_return_alignment: contemporaneous_to_forward
+  stock_horizon_periods: 1
+  futures_return_alignment: contemporaneous_to_forward
+  futures_horizon_periods: 1
+
+factors:
+  include: [value, quality, momentum, growth]
+  exclude: []
+  directions:
+    value: 1
+    quality: 1
+    momentum: 1
+    growth: 1
+  groups:
+    Value: [value]
+    Quality: [quality]
+    Momentum: [momentum]
+    Growth: [growth]
+
+preprocessing:
+  winsorize:
+    enabled: true
+    lower_quantile: 0.01
+    upper_quantile: 0.99
+    minimum_observations: 20
+  neutralization:
+    enabled: true
+    categorical: [sector, country]
+    numeric: [log_market_cap]
+    minimum_observations: 30
+    ridge_alpha: 0.000001
+  rank_transform: gaussian  # gaussian, uniform_0_1, uniform_minus1_1
+  gaussian_clip: 3.0
+  fill_missing_value: 0.0
+  add_missing_indicators: false
+
+diagnostics:
+  quantile_bins: 5
+  piecewise_knot: 0.0
+  scatter_max_points: 4000
+  scatter_plots_per_page: 4
+
+model:
+  candidate_models: [linear, piecewise, quadratic, combined_ridge]
+  ridge_alphas: [0.01, 0.1, 1.0, 10.0, 100.0]
+  training_window_periods: 60
+  minimum_train_periods: 24
+  date_equal_weighting: true
+  one_se_rule: true
+  factor_adoption:
+    minimum_mean_rank_ic: -1.0
+    minimum_positive_rate: 0.0
+  group_method: ic_weighted   # equal or ic_weighted
+  group_ic_lookback_periods: 36
+  factor_weight_cap: 0.50
+  composite_method: ridge     # ridge or equal
+  composite_minimum_train_periods: 12
+
+aggregation:
+  # Default requested convention:
+  # 1) average constituent scores by security count within each sector;
+  # 2) combine sectors using the supplied index sector weights.
+  method: sector_weighted_count_mean
+  normalize_sector_weights: true
+  minimum_index_weight_coverage: 0.75
+  minimum_constituent_count: 5
+  positive_alpha_threshold: 0.0
+
+risk:
+  window_periods:
+    monthly: 36
+    weekly: 52
+  annualization:
+    monthly: 12
+    weekly: 52
+  var_confidence: 0.95
+
+report:
+  create_pdf: true
+  create_excel: true
+  line_plots_per_page: 4
+  include_large_stock_history_sheet: false

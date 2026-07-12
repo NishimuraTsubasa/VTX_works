@@ -1,0 +1,8 @@
+pandas>=2.0
+numpy>=1.24
+xlsxwriter>=3.1
+pyarrow>=14.0
+openpyxl>=3.1
+# Bloomberg-connected environment only:
+# blpapi (install using Bloomberg's supported package/SDK route)
+# xbbg>=0.7

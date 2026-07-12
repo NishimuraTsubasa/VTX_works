@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stock-index-scoring-model"
+version = "0.4.0"
+description = "Bottom-up stock factor scoring, index aggregation, and futures risk reporting"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "pandas>=2.1",
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "scikit-learn>=1.4",
+  "statsmodels>=0.14",
+  "matplotlib>=3.8",
+  "openpyxl>=3.1",
+  "XlsxWriter>=3.1"
+]
+
+[project.scripts]
+stock-index-model = "stock_index_model.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,13 @@
+asset_id,index_name,region,currency,bbg_generic_ticker
+SPX,S&P 500,US,USD,ES1 Index
+NDX,Nasdaq 100,US,USD,NQ1 Index
+RTY,Russell 2000,US,USD,RTY1 Index
+SX5E,Euro Stoxx 50,Europe,EUR,VG1 Index
+DAX,DAX,Europe,EUR,GX1 Index
+FTSE,FTSE 100,Europe,GBP,Z1 Index
+NKY,Nikkei 225,Japan,JPY,NK1 Index
+TPX,TOPIX,Japan,JPY,TP1 Index
+HSI,Hang Seng,Asia ex Japan,HKD,HI1 Index
+HSCEI,Hang Seng China Enterprises,Asia ex Japan,HKD,HC1 Index
+KOSPI,KOSPI 200,Asia ex Japan,KRW,KM1 Index
+ASX,S&P/ASX 200,Oceania,AUD,XP1 Index

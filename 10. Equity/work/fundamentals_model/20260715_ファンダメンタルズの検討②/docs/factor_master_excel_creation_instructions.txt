@@ -1,0 +1,478 @@
+【factor_master.xlsx 作成指示書】
+
+目的
+====
+個別銘柄スコアリングモデルで使用するファクター定義、グループ統合方法、派生特徴量、例外設定を管理するExcelファイルを作成する。
+この文書は、別PCのChatGPT / Codex / Python環境にそのまま渡し、同じExcelを再作成するための指示書である。
+
+出力ファイル名
+================
+factor_master.xlsx
+
+重要な前提
+==========
+1. ファクター名称列は作らない。Factor_Codeのみで管理する。
+2. Factor_Codeはfactors_and_returns.xlsxのFA列名と完全一致させる。
+3. 通常変更しない設定はFactor_Masterに持たせず、Factor_Overrides / Group_Overridesに例外だけ記載する。
+4. 選択式の項目にはExcelのデータ入力規則（プルダウン）を設定する。
+5. README、Column_Dictionary、Option_Dictionaryを先頭に置き、別担当者がExcel単体で内容を理解できるようにする。
+6. ユーザー入力セルは淡黄色の背景、青文字にする。
+7. 見出しは濃紺または青の背景、白太字にする。
+8. 各入力シートの先頭4行を固定し、データは5行目から入力する。
+
+シート順
+========
+1. README
+2. Column_Dictionary
+3. Option_Dictionary
+4. Factor_Master
+5. Group_Settings
+6. Feature_Engineering_Control
+7. Derived_Feature_Rules
+8. Factor_Overrides
+9. Group_Overrides
+
+共通レイアウト
+==============
+・A1から最終列までを結合し、シートタイトルを表示する。
+・2行目にシートの説明を表示する。
+・4行目をヘッダー行にする。
+・5行目以降を入力・データ領域とする。
+・入力領域は1000行程度まで淡黄色・青文字にする。
+・4行目まで固定する。
+・説明文は折り返して表示する。
+
+======================================================================
+1. README
+======================================================================
+目的：各シートの役割、編集頻度、基本手順、重要注意を説明する。
+
+表1（A4:D12）
+Sheet | 編集頻度 | 目的 | 主な注意点
+Factor_Master | 必須 | FAコードの所属グループ・使用可否・方向・固定ウェイトを設定 | Factor_Codeは入力データの列名と完全一致。重複禁止。
+Group_Settings | 必須 | Value / Momentum等のグループ単位の統合方法を設定 | Factor_Masterで使用する全グループを定義。
+Feature_Engineering_Control | 派生特徴量利用時 | 派生特徴量を作る対象と、元ファクターを残すかを設定 | factor指定はgroup指定より優先する想定。
+Derived_Feature_Rules | 派生特徴量利用時 | 差分・移動平均乖離等の生成ルールを設定 | Source_Lag_Periodsと翌期リターンの時点整合に注意。
+Factor_Overrides | 例外時のみ | 一部FAだけ共通前処理を上書き | 空欄はPython Configの共通デフォルトを使用。
+Group_Overrides | 例外時のみ | 一部グループだけ推定期間・最大ウェイト等を上書き | 空欄はPython Configの共通デフォルトを使用。
+Column_Dictionary | 参照のみ | 全カラムの詳細定義・入力型・必須性・例を掲載 | 入力時に不明な項目は最初に確認。
+Option_Dictionary | 参照のみ | 選択式項目の全選択肢・意味・推奨用途・注意点を掲載 | 文字列は記載どおりの半角英字を使用。
+
+設定の優先順位：
+Factor_Overrides / Group_Overrides
+  > 各マスタの通常設定
+  > Python Configの共通デフォルト
+
+重要注意：
+・スコア時点tの元FAは翌期リターンt+1へ対応する。
+・Source_Lag_Periods=1の派生FAはt-1以前から作成するため、最新元情報から目的変数まで実効2期間離れる。
+・欠損値を0で入力しない。空欄またはNaNとして入力する。
+・Directionは全FAを「スコアが高いほど望ましい」向きへ統一するために使用する。
+・選択式の英字は半角・小文字・アンダースコアを含めて完全一致させる。
+
+======================================================================
+2. Column_Dictionary
+======================================================================
+目的：全カラムの意味をExcel内で確認できるようにする。
+
+列：
+Sheet
+Column
+Required
+Data_Type
+Allowed_Values
+Blank_Behavior
+Detailed_Description
+Example
+Common_Error
+
+以下のカラムを全て登録する。
+
+[Factor_Master]
+Factor_Code
+・必須：Yes
+・型：Text
+・許可値：FAコード（例 FA0101）
+・空欄：不可
+・説明：factors_and_returns.xlsxのFA列名。モデル内の一意キー。重複不可。
+・例：FA0101
+
+Factor_Group
+・必須：Yes
+・型：Text
+・許可値：Group_Settingsに存在するグループ
+・空欄：不可
+・説明：ファクターをValue、Momentum等のSubScoreへ分類する。
+・例：Value
+
+Enabled
+・必須：Yes
+・型：Integer
+・選択肢：0 / 1
+・説明：1なら使用、0なら分析対象外。
+
+Direction
+・必須：Yes
+・型：Integer
+・選択肢：-1 / 1
+・説明：前処理後のFAを「高いほど望ましい」方向へ統一する。1はそのまま、-1は符号反転。
+
+Base_Weight
+・必須：Yes
+・型：Decimal
+・許可値：0以上
+・説明：Aggregation_Method=manualのときの相対ウェイト。他方式では原則未使用。
+
+[Group_Settings]
+Factor_Group
+・必須。Factor_MasterのFactor_Groupと完全一致する一意キー。
+
+Enabled
+・選択肢：0 / 1
+・1ならグループを最終スコアに使用、0ならグループ全体を除外。
+
+Aggregation_Method
+・選択肢：equal_weight / manual / ic_adjusted / pca
+・グループ内FAをSubScoreへ統合する方法。
+
+[Feature_Engineering_Control]
+Scope_Type
+・選択肢：group / factor
+・groupならグループ全体、factorなら個別FAへ設定を適用。
+
+Scope_Value
+・Scope_Type=groupならFactor_Group、factorならFactor_Codeを記載。
+
+Enabled
+・選択肢：0 / 1
+・1なら派生特徴量を生成。
+
+Generation_Mode
+・選択肢：all / selected
+・allは対象の有効ルールを全て使用。
+・selectedはSelected=1のルールだけ使用。
+
+Include_Raw
+・選択肢：0 / 1
+・1なら元FAと派生FAを併用。
+・0なら派生FAのみ使用。
+
+[Derived_Feature_Rules]
+Rule_ID
+・必須。一意のルール識別子。例：VAL_MADEV_12
+
+Scope_Type
+・選択肢：group / factor
+
+Scope_Value
+・対象のFactor_GroupまたはFactor_Code。
+
+Feature_Type
+・選択肢：difference / rolling_mean_deviation / rolling_mean_ratio / expanding_mean_deviation
+
+Difference_Periods
+・differenceで使用。
+・1以上の整数。
+・difference以外では0または空欄。
+
+Window_Periods
+・rolling系で使用。
+・2以上の整数。
+・月次データで12なら12か月。
+
+Min_Periods
+・派生値を計算する最低観測数。
+・rolling系ではWindow_Periods以下。
+
+Source_Lag_Periods
+・スコア時点tから最新元FAを何期遅らせるか。
+・0以上の整数。推奨は1。
+・Source_Lag=1ではt-1以前の情報から派生値を作り、t+1リターンを評価する。
+
+Exclude_Source_From_Baseline
+・選択肢：0 / 1
+・1なら比較対象の最新元FAを移動平均の基準計算から除外。
+
+Enabled
+・選択肢：0 / 1
+・ルール自体の有効・無効。
+
+Selected
+・選択肢：0 / 1
+・Generation_Mode=selectedの場合、1のルールだけ使用。
+
+Direction_Mode
+・選択肢：inherit / reverse / custom
+
+Custom_Direction
+・選択肢：-1 / 1
+・Direction_Mode=customの場合のみ使用。
+
+[Factor_Overrides]
+Factor_Code
+・Factor_Masterに存在するFA。
+・共通設定と異なるFAだけ行を作成する。
+
+Transform
+・選択肢：default / none / log / log1p / inverse / signed_log
+・空欄またはdefaultはPython Configの共通設定。
+
+Winsorize
+・選択肢：default / none / 1_99 / 2.5_97.5 / mad_3
+・空欄またはdefaultはPython Configの共通設定。
+
+Neutralize
+・選択肢：0 / 1
+・空欄は共通設定。
+・1は国・セクター・サイズ中立化、0は実施しない。
+
+Rank_Normalize
+・選択肢：0 / 1
+・空欄は共通設定。
+
+Min_Coverage
+・0超1以下の小数。
+・例：60%なら0.60。60と入力しない。
+
+[Group_Overrides]
+Factor_Group
+・Group_Settingsに存在するグループ。
+・共通設定と異なるグループだけ行を作成する。
+
+Lookback_Periods
+・IC、相関、PCA等の推定に使う履歴期間。
+・1以上の整数。
+
+Min_Periods
+・推定開始に必要な最低期間。
+・Lookback_Periods以下。
+
+Max_Weight
+・0超1以下。
+・ic_adjusted等で単一FAが占める最大ウェイト。
+
+Weight_Smoothing
+・0以上1以下。
+・前期ウェイトを残す比率。1に近いほどウェイト変化が小さい。
+
+Fallback_Method
+・選択肢：equal_weight / manual
+・履歴不足や推定失敗時に使用。
+
+PCA_Anchor_Factor
+・同一グループに属するFactor_Code。
+・PCAの符号を安定させる基準FA。
+
+======================================================================
+3. Option_Dictionary
+======================================================================
+目的：全ての選択式項目の意味を一覧化する。
+
+列：
+Field | Option_Value | Meaning | Recommended_Use | Caution | Example
+
+[0 / 1]
+1：有効・実施する。
+0：無効・実施しない。
+
+[Direction]
+1：値が高いほど望ましい。
+-1：値が低いほど望ましいため符号反転。
+
+[Aggregation_Method]
+equal_weight
+・有効FAを等ウェイトで平均。
+・最初の基準モデルとして推奨。
+
+manual
+・Base_Weightを正規化して固定ウェイトで統合。
+・社内知見や固定ルールがある場合。
+
+ic_adjusted
+・過去OOS RankICとFA間相関を使ってウェイト調整。
+・予測力を反映し、重複を抑える。
+・履歴不足、過学習、ウェイト変動に注意。
+
+pca
+・FAの共通変動を主成分として抽出。
+・共通成分の診断や比較モデル向け。
+・翌期リターン予測力を直接最大化する方法ではない。
+
+[Scope_Type]
+group：Factor_Group全体を対象。
+factor：個別Factor_Codeを対象。
+
+[Generation_Mode]
+all：該当するEnabled=1のルールを全て使用。
+selected：Enabled=1かつSelected=1のルールだけ使用。通常はこちらを推奨。
+
+[Feature_Type]
+difference
+・x(t-L) - x(t-L-P)
+・変化量を表す。
+
+rolling_mean_deviation
+・x(t-L) - 過去W期間平均
+・通常水準からの絶対乖離を表す。
+
+rolling_mean_ratio
+・x(t-L) / 過去W期間平均 - 1
+・通常水準からの相対乖離を表す。
+・平均が0付近または負の場合は注意。
+
+expanding_mean_deviation
+・x(t-L) - それ以前の全履歴平均
+・企業自身の長期平均からの乖離を表す。
+
+[Direction_Mode]
+inherit：元FAのDirectionを引き継ぐ。
+reverse：元FAと逆方向。
+custom：Custom_Directionを使用。
+
+[Transform]
+default：Python Configの共通設定。
+none：変換なし。
+log：log(x)。xは正値である必要がある。
+log1p：log(1+x)。xは-1より大きい必要がある。
+inverse：1/x。0付近で極端化するため注意。
+signed_log：sign(x) * log(1+abs(x))。正負を含む裾の厚い指標向け。
+
+[Winsorize]
+default：Python Configの共通設定。
+none：外れ値処理なし。
+1_99：1%点と99%点でクリップ。
+2.5_97.5：2.5%点と97.5%点でクリップ。
+mad_3：中央値とMADを使って外れ値をクリップ。
+
+[Fallback_Method]
+equal_weight：履歴不足時に等ウェイトへ戻す。推奨。
+manual：履歴不足時にBase_Weightを使用。
+
+======================================================================
+4. Factor_Master
+======================================================================
+列：
+Factor_Code | Factor_Group | Enabled | Direction | Base_Weight
+
+サンプル行：
+FA0101 | Value | 1 | 1 | 1.0
+FA0102 | Value | 1 | 1 | 1.0
+FA1001 | Momentum | 1 | 1 | 1.0
+FA2001 | Quality | 1 | -1 | 1.0
+FA3001 | Growth | 1 | 1 | 1.0
+FA4001 | Low_Risk | 1 | 1 | 1.0
+
+データ入力規則：
+Enabled：0, 1
+Direction：-1, 1
+
+======================================================================
+5. Group_Settings
+======================================================================
+列：
+Factor_Group | Enabled | Aggregation_Method
+
+サンプル行：
+Value | 1 | ic_adjusted
+Momentum | 1 | equal_weight
+Quality | 1 | equal_weight
+Growth | 1 | equal_weight
+Low_Risk | 1 | equal_weight
+
+データ入力規則：
+Enabled：0, 1
+Aggregation_Method：equal_weight, manual, ic_adjusted, pca
+
+======================================================================
+6. Feature_Engineering_Control
+======================================================================
+列：
+Scope_Type | Scope_Value | Enabled | Generation_Mode | Include_Raw
+
+サンプル行：
+group | Value | 1 | selected | 1
+group | Momentum | 1 | selected | 1
+
+データ入力規則：
+Scope_Type：group, factor
+Enabled：0, 1
+Generation_Mode：all, selected
+Include_Raw：0, 1
+
+======================================================================
+7. Derived_Feature_Rules
+======================================================================
+列：
+Rule_ID | Scope_Type | Scope_Value | Feature_Type | Difference_Periods | Window_Periods | Min_Periods | Source_Lag_Periods | Exclude_Source_From_Baseline | Enabled | Selected | Direction_Mode | Custom_Direction
+
+サンプル行：
+VAL_DIFF_1 | group | Value | difference | 1 | 0 | 1 | 1 | 1 | 1 | 1 | inherit | 1
+VAL_MADEV_6 | group | Value | rolling_mean_deviation | 0 | 6 | 4 | 1 | 1 | 1 | 1 | inherit | 1
+MOM_DIFF_1 | group | Momentum | difference | 1 | 0 | 1 | 1 | 1 | 1 | 1 | inherit | 1
+
+データ入力規則：
+Scope_Type：group, factor
+Feature_Type：difference, rolling_mean_deviation, rolling_mean_ratio, expanding_mean_deviation
+Exclude_Source_From_Baseline：0, 1
+Enabled：0, 1
+Selected：0, 1
+Direction_Mode：inherit, reverse, custom
+Custom_Direction：-1, 1
+
+======================================================================
+8. Factor_Overrides
+======================================================================
+列：
+Factor_Code | Transform | Winsorize | Neutralize | Rank_Normalize | Min_Coverage
+
+初期状態はヘッダーのみ。例外があるFAだけ追加する。
+
+データ入力規則：
+Transform：default, none, log, log1p, inverse, signed_log
+Winsorize：default, none, 1_99, 2.5_97.5, mad_3
+Neutralize：0, 1（空欄可）
+Rank_Normalize：0, 1（空欄可）
+
+======================================================================
+9. Group_Overrides
+======================================================================
+列：
+Factor_Group | Lookback_Periods | Min_Periods | Max_Weight | Weight_Smoothing | Fallback_Method | PCA_Anchor_Factor
+
+初期状態はヘッダーのみ。例外があるグループだけ追加する。
+
+データ入力規則：
+Fallback_Method：equal_weight, manual
+
+======================================================================
+列幅の目安
+============
+README：A=30, B=38, C=40, D=52
+Column_Dictionary：A=28, B=32, C=13, D=14, E=48, F=32, G=64, H=20, I=46
+Option_Dictionary：A=38, B=34, C=46, D=42, E=52, F=30
+Factor_Master：A=22, B=22, C=12, D=12, E=16
+Group_Settings：A=24, B=12, C=28
+Feature_Engineering_Control：A=18, B=24, C=12, D=22, E=16
+Derived_Feature_Rules：A=20, B=15, C=20, D=34, E=20, F=18, G=16, H=22, I=30, J=12, K=12, L=20, M=20
+Factor_Overrides：A=22, B=20, C=22, D=16, E=18, F=18
+Group_Overrides：A=22, B=20, C=18, D=18, E=22, F=22, G=24
+
+数値表示
+========
+Base_Weight：0.000
+Min_Coverage：0.0%
+Max_Weight：0.0%
+Weight_Smoothing：0.0%
+
+完成後チェック
+==============
+□ シート順が指示どおりになっている
+□ Factor_Name_JP / Factor_Name_ENが存在しない
+□ Factor_Codeに重複がない
+□ Factor_MasterのFactor_GroupがGroup_Settingsに全て存在する
+□ 選択式セルにプルダウンが設定されている
+□ README、Column_Dictionary、Option_Dictionaryだけで設定内容を理解できる
+□ 入力セルが淡黄色・青文字になっている
+□ Source_Lag_Periodsと翌期リターンの時点関係がREADMEに明記されている
+□ Factor_Overrides / Group_Overridesは初期状態でヘッダーのみ
+□ ファイル名がfactor_master.xlsxである

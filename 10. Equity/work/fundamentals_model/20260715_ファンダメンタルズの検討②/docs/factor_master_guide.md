@@ -61,3 +61,17 @@ Base_Weightを使用します。投資仮説に基づく固定配分を使う場
 ## 7. 変更履歴
 
 Factor_MasterはGit、SharePoint、文書管理システムなどで版管理してください。出力Excelには使用したマスタと解決後設定がコピーされるため、分析結果と設定の対応を確認できます。
+
+## 差分・移動平均乖離の管理
+
+`Feature_Engineering_Control` と `Derived_Feature_Rules` を使用します。
+
+- `Scope_Type=group`: Value、Momentum等へ一括適用
+- `Scope_Type=factor`: FA0101等へ個別適用。グループ設定より優先
+- `Generation_Mode=all`: Enabledなルールをすべて使用
+- `Generation_Mode=selected`: EnabledかつSelected=1のルールだけ使用
+- `Include_Raw=1`: 原系列も説明変数として残す
+
+標準の `Source_Lag_Periods=1` では、スコア時点tの派生値にt-1以前の情報だけを使用します。翌期リターンt+1と評価するため、最新使用情報からターゲットまで2時点の間隔を確保します。
+
+詳細は `docs/derived_factor_features.md` を参照してください。

@@ -17,6 +17,8 @@ CONFIG = {
             "factor_master": "Factor_Master",
             "group_settings": "Group_Settings",
             "method_params": "Group_Method_Params",
+            "feature_control": "Feature_Engineering_Control",
+            "derived_rules": "Derived_Feature_Rules",
         },
         "frequency": "monthly",  # monthly / weekly
     },
@@ -37,6 +39,18 @@ CONFIG = {
     "factors": {
         "reject_unknown_factor_columns": False,
         "require_all_configured_factors": True,
+    },
+    "feature_engineering": {
+        "enabled": True,
+        # ExcelのFeature_Engineering_Controlに指定がない場合の共通値。
+        "defaults": {
+            "enabled": False,
+            "generation_mode": "selected",  # all / selected
+            "include_raw": True,
+        },
+        # 派生特徴量はスコア時点tの行に格納します。Source_Lag=1なら、
+        # t-1までの情報だけを使い、t+1リターンと対応するため、実質2時点の間隔です。
+        "strict_lag_alignment": True,
     },
     "preprocessing": {
         "winsorize": {
@@ -119,6 +133,9 @@ CONFIG = {
                 "Group_Weight_Latest": True,
                 "Stock_Scores_Latest": True,
                 "Data_Quality": True,
+                "Feature_Lineage": True,
+                "Feature_Engineering_Control": True,
+                "Derived_Feature_Rules": True,
             },
         },
         "history_excel": {

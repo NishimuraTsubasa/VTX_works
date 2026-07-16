@@ -62,15 +62,16 @@ SCENARIO_DESCRIPTIONS: dict[str, dict[str, str]] = {
     "S06_Selected_Factor_Models": {
         "title": "単一ファクターモデル選択＋階層等ウェイト",
         "description": (
-            "各ファクターをLinear・Piecewise・Quadratic・Combined RidgeからOOSで選択し、"
+            "設定された原系列・差分・移動平均乖離等をそれぞれ1ファクターとして扱い、"
+            "Linear・Piecewise・Quadratic・Combined RidgeからOOSで選択します。"
             "予測値を0-1スコアへ変換後、グループ内・グループ間を等ウェイトします。"
         ),
     },
     "S07_Full_OOF_Ridge": {
         "title": "最終候補：設定済みグループ統合＋OOF Ridge",
         "description": (
-            "選択済み単一ファクターモデル、Excelで指定したグループ統合方法、"
-            "グループ間OOF Ridgeを順に適用したフルモデルです。"
+            "原系列と設定済み派生ファクターの選択済み単一ファクターモデル、"
+            "Excelで指定したグループ統合方法、グループ間OOF Ridgeを順に適用したフルモデルです。"
         ),
     },
 }
@@ -399,6 +400,7 @@ def build_stock_scoring_scenarios(
     panel: pd.DataFrame,
     factors: list[str],
     factor_master: pd.DataFrame,
+    base_factor_master: pd.DataFrame,
     group_settings: pd.DataFrame,
     method_params: pd.DataFrame,
     factor_oof: pd.DataFrame,
@@ -414,8 +416,9 @@ def build_stock_scoring_scenarios(
     date_col, isin_col = config["columns"]["date"], config["columns"]["isin"]
     id_cols = _base_identifiers(panel, config)
     fm = factor_master[factor_master["Enabled"].astype(int).eq(1)].copy()
-    factor_list = [f for f in fm["Factor_Code"].astype(str) if f in factors]
-    directions = fm.set_index("Factor_Code")["Direction"].astype(int).to_dict()
+    base_fm = base_factor_master[base_factor_master["Enabled"].astype(int).eq(1)].copy()
+    factor_list = [f for f in base_fm["Factor_Code"].astype(str) if f in factors]
+    directions = base_fm.set_index("Factor_Code")["Direction"].astype(int).to_dict()
     results: dict[str, ScenarioResult] = {}
 
     transformed_map = {f: f"{f}__transformed" for f in factor_list}
@@ -428,7 +431,7 @@ def build_stock_scoring_scenarios(
 
     def add_simple(sid: str, factor_values: pd.DataFrame, fixed: bool, hierarchical: bool = False) -> None:
         if hierarchical:
-            group_df, score = _hierarchical_equal(factor_values, fm, date_col, isin_col)
+            group_df, score = _hierarchical_equal(factor_values, base_fm, date_col, isin_col)
         else:
             group_df = pd.DataFrame(columns=[date_col, isin_col])
             score, _, _ = _direct_average(factor_values, factor_list, fixed)
@@ -457,7 +460,7 @@ def build_stock_scoring_scenarios(
     if "forward_return" not in ic_input.columns:
         ic_input = ic_input.merge(panel[[date_col, isin_col, "forward_return"]], on=[date_col, isin_col], how="left")
     ic_group_wide, ic_weights = _ic_adjusted_group_scenario(
-        ic_input, fm, group_settings, method_params, config
+        ic_input, base_fm, group_settings, method_params, config
     )
     ic_group_cols = [c for c in ic_group_wide.columns if c not in [date_col, isin_col]]
     ic_final = ic_group_wide[ic_group_cols].mean(axis=1, skipna=True)

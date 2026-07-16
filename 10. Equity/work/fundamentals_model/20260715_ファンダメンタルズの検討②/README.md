@@ -1,4 +1,4 @@
-# 個別銘柄スコアリングモデル比較・評価プロジェクト v0.6
+# 個別銘柄スコアリングモデル比較・評価プロジェクト v0.7
 
 ## 1. 目的
 
@@ -24,15 +24,17 @@
 | S03 | Neutralized Direct EW | 国・セクター・サイズ中立化を追加 |
 | S04 | Hierarchical Equal Weight | グループ内・グループ間を等ウェイト |
 | S05 | Correlation Adjusted IC | グループ内を相関調整ICウェイト |
-| S06 | Selected Factor Models | Linear・Piecewise・Quadratic・Combined Ridgeから選択 |
-| S07 | Full OOF Ridge | 設定済みグループ統合とOOF Ridgeによる最終候補 |
+| S06 | Selected Factor Models | 原系列・設定済み差分・移動平均乖離を含め、Linear・Piecewise・Quadratic・Combined Ridgeから選択 |
+| S07 | Full OOF Ridge | 原系列・派生系列、設定済みグループ統合とOOF Ridgeによる最終候補 |
+
+S00-S05は原系列ファクターだけを使用し、S06-S07でExcel設定済みの差分・移動平均乖離等を追加します。これにより、派生特徴量を導入する増分効果を段階比較できます。
 
 すべてのパターンを同じ5分位評価方法で比較するため、スコア作成方法の差を確認できます。
 
 ## 3. フォルダ構成
 
 ```text
-stock_scoring_model_v6/
+stock_scoring_model_v7/
 ├─ README.md
 ├─ config/
 │  └─ model_config.py
@@ -49,6 +51,7 @@ stock_scoring_model_v6/
 │  ├─ file_inventory.md
 │  ├─ methodology.md
 │  ├─ model_selection.md
+│  ├─ derived_factor_features.md
 │  └─ output_management.md
 ├─ outputs/
 │  ├─ analysis_summary.xlsx
@@ -90,7 +93,25 @@ stock_scoring_model_v6/
 - `Factor_Master`: FAコード、名称、グループ、方向、個別設定
 - `Group_Settings`: Value等のグループ統合方法
 - `Group_Method_Params`: IC・PCA等の上書き設定
+- `Feature_Engineering_Control`: グループ・FAコード単位の派生特徴量生成モード
+- `Derived_Feature_Rules`: 差分・移動平均乖離等の生成式、窓、情報ラグ、選択フラグ
 - `README`: 入力方法
+
+
+## 4.3 差分・移動平均乖離ファクター
+
+ValueやMomentum等、Excelで指定したグループまたは個別FAコードについて、原系列から派生特徴量を自動生成できます。
+
+標準設定では、スコア時点 `t` の派生値に `t-1` 以前の情報だけを使います。
+
+```text
+1期差分              = x[t-1] - x[t-2]
+12期移動平均乖離     = x[t-1] - mean(x[t-2], ..., x[t-13])
+```
+
+翌期リターン `r[t+1]` と結合するため、最新使用情報 `x[t-1]` からターゲットまでの間隔は2期です。
+
+`Generation_Mode=all` ならEnabledな派生ルールをすべて使用し、`selected` ならSelected=1だけを使用します。原系列を併用するかは `Include_Raw` で設定します。詳細は `docs/derived_factor_features.md` を参照してください。
 
 ## 5. パターン別Excel
 
@@ -163,7 +184,7 @@ Date / ISIN / FactorCode / FactorScore
 ## 8. 実行方法
 
 ```bash
-cd stock_scoring_model_v6
+cd stock_scoring_model_v7
 pip install -r requirements.txt
 python scripts/run_pipeline.py --config config/model_config.py
 ```
@@ -212,5 +233,6 @@ stock-scoring-model --config config/model_config.py
 - 同梱データと出力は動作確認用の合成データです。
 - 実データではPoint-in-Time整合を必ず確認してください。
 - S05以降のウェイト・回帰には、予測時点より前の実現リターンだけを使用します。
+- Source_Lag=1の派生特徴量はスコア時点tにt-1以前の情報だけを格納し、t+1リターンと評価します。
 - パターン比較は共通評価期間のみに限定しています。
 - 複雑モデルの改善が小さい場合は、単純モデルを優先します。

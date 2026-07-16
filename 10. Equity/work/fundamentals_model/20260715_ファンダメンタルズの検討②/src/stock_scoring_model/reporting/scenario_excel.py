@@ -203,7 +203,9 @@ def create_scenario_workbook(
 
         if settings.get("include_factor_map", True):
             factor_map = factor_master[[
-                c for c in ["Factor_Code", "Factor_Name_JP", "Factor_Name_EN", "Factor_Group", "Direction", "Enabled"]
+                c for c in ["Factor_Code", "Base_Factor_Code", "Factor_Name_JP", "Factor_Name_EN", "Factor_Group",
+                            "Feature_Type", "Rule_ID", "Source_Lag_Periods", "Effective_Target_Gap_Periods",
+                            "Direction", "Enabled"]
                 if c in factor_master.columns
             ]].copy()
             _write_df(writer, "Factor_Map", factor_map, fmts)

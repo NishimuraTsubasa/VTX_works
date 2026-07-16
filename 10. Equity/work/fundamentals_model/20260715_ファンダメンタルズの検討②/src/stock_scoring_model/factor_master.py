@@ -41,11 +41,29 @@ ALLOWED_TRANSFORMS = {"none", "log", "log1p", "inverse", "signed_log"}
 ALLOWED_WINSOR = {"default", "none", "1_99", "2.5_97.5", "mad_3"}
 
 
+FEATURE_CONTROL_COLUMNS = [
+    "Scope_Type", "Scope_Value", "Enabled", "Generation_Mode", "Include_Raw", "Notes"
+]
+DERIVED_RULE_COLUMNS = [
+    "Rule_ID", "Scope_Type", "Scope_Value", "Feature_Type", "Difference_Periods",
+    "Window_Periods", "Min_Periods", "Source_Lag_Periods", "Exclude_Source_From_Baseline",
+    "Enabled", "Selected", "Direction_Mode", "Custom_Direction", "Description"
+]
+ALLOWED_SCOPE_TYPES = {"group", "factor"}
+ALLOWED_GENERATION_MODES = {"all", "selected"}
+ALLOWED_FEATURE_TYPES = {
+    "difference", "rolling_mean_deviation", "rolling_mean_ratio", "expanding_mean_deviation"
+}
+ALLOWED_DIRECTION_MODES = {"inherit", "reverse", "custom"}
+
+
 @dataclass
 class FactorSettingsBundle:
     factor_master: pd.DataFrame
     group_settings: pd.DataFrame
     method_params: pd.DataFrame
+    feature_control: pd.DataFrame
+    derived_rules: pd.DataFrame
     validation: pd.DataFrame
 
 
@@ -120,10 +138,54 @@ def _clean_method_params(df: pd.DataFrame | None) -> pd.DataFrame:
     return out.reset_index(drop=True)
 
 
+
+def _clean_feature_control(df: pd.DataFrame | None) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame(columns=FEATURE_CONTROL_COLUMNS)
+    out = df.copy().dropna(how="all")
+    out.columns = [str(c).strip() for c in out.columns]
+    for col in FEATURE_CONTROL_COLUMNS:
+        if col not in out.columns:
+            out[col] = np.nan
+    out["Scope_Type"] = out["Scope_Type"].fillna("group").astype(str).str.strip().str.lower()
+    out["Scope_Value"] = out["Scope_Value"].astype(str).str.strip()
+    out = out[out["Scope_Value"].ne("") & out["Scope_Value"].ne("nan")].copy()
+    out["Enabled"] = _coerce_bool01(out["Enabled"], 1)
+    out["Generation_Mode"] = out["Generation_Mode"].fillna("selected").astype(str).str.strip().str.lower()
+    out["Include_Raw"] = _coerce_bool01(out["Include_Raw"], 1)
+    out["Notes"] = out["Notes"].fillna("").astype(str)
+    return out.reset_index(drop=True)
+
+
+def _clean_derived_rules(df: pd.DataFrame | None) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame(columns=DERIVED_RULE_COLUMNS)
+    out = df.copy().dropna(how="all")
+    out.columns = [str(c).strip() for c in out.columns]
+    for col in DERIVED_RULE_COLUMNS:
+        if col not in out.columns:
+            out[col] = np.nan
+    out["Rule_ID"] = out["Rule_ID"].astype(str).str.strip()
+    out = out[out["Rule_ID"].ne("") & out["Rule_ID"].ne("nan")].copy()
+    out["Scope_Type"] = out["Scope_Type"].fillna("group").astype(str).str.strip().str.lower()
+    out["Scope_Value"] = out["Scope_Value"].astype(str).str.strip()
+    out["Feature_Type"] = out["Feature_Type"].astype(str).str.strip().str.lower()
+    for col, default in [("Difference_Periods", 1), ("Window_Periods", 12), ("Min_Periods", 3), ("Source_Lag_Periods", 1)]:
+        out[col] = pd.to_numeric(out[col], errors="coerce").fillna(default).astype(int).clip(lower=0)
+    out["Exclude_Source_From_Baseline"] = _coerce_bool01(out["Exclude_Source_From_Baseline"], 1)
+    out["Enabled"] = _coerce_bool01(out["Enabled"], 1)
+    out["Selected"] = _coerce_bool01(out["Selected"], 1)
+    out["Direction_Mode"] = out["Direction_Mode"].fillna("inherit").astype(str).str.strip().str.lower()
+    out["Custom_Direction"] = pd.to_numeric(out["Custom_Direction"], errors="coerce").fillna(1).astype(int)
+    out["Description"] = out["Description"].fillna("").astype(str)
+    return out.reset_index(drop=True)
+
 def validate_factor_settings(
     factor_master: pd.DataFrame,
     group_settings: pd.DataFrame,
     stock_columns: list[str] | None = None,
+    feature_control: pd.DataFrame | None = None,
+    derived_rules: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     issues: list[dict[str, Any]] = []
 
@@ -168,6 +230,27 @@ def validate_factor_settings(
         for code in unknown:
             issues.append({"severity": "WARNING", "check": "input_factor_not_configured", "item": code, "detail": "Input factor column is not defined in Factor_Master and will be ignored."})
 
+
+    feature_control = feature_control if feature_control is not None else pd.DataFrame()
+    derived_rules = derived_rules if derived_rules is not None else pd.DataFrame()
+    if not feature_control.empty:
+        invalid_scope = feature_control[~feature_control["Scope_Type"].isin(ALLOWED_SCOPE_TYPES)]
+        for _, row in invalid_scope.iterrows():
+            issues.append({"severity": "ERROR", "check": "invalid_feature_scope", "item": row["Scope_Value"], "detail": f"Scope_Type={row['Scope_Type']}"})
+        invalid_mode = feature_control[~feature_control["Generation_Mode"].isin(ALLOWED_GENERATION_MODES)]
+        for _, row in invalid_mode.iterrows():
+            issues.append({"severity": "ERROR", "check": "invalid_generation_mode", "item": row["Scope_Value"], "detail": f"Generation_Mode={row['Generation_Mode']}"})
+    if not derived_rules.empty:
+        dup_rules = derived_rules[derived_rules["Rule_ID"].duplicated(keep=False)]
+        for rid in sorted(dup_rules["Rule_ID"].unique()):
+            issues.append({"severity": "ERROR", "check": "duplicate_derived_rule", "item": rid, "detail": "Rule_ID is duplicated."})
+        invalid_type = derived_rules[~derived_rules["Feature_Type"].isin(ALLOWED_FEATURE_TYPES)]
+        for _, row in invalid_type.iterrows():
+            issues.append({"severity": "ERROR", "check": "invalid_derived_feature_type", "item": row["Rule_ID"], "detail": f"Feature_Type={row['Feature_Type']}"})
+        invalid_dir = derived_rules[~derived_rules["Direction_Mode"].isin(ALLOWED_DIRECTION_MODES)]
+        for _, row in invalid_dir.iterrows():
+            issues.append({"severity": "ERROR", "check": "invalid_derived_direction_mode", "item": row["Rule_ID"], "detail": f"Direction_Mode={row['Direction_Mode']}"})
+
     if not issues:
         issues.append({"severity": "OK", "check": "factor_master_validation", "item": "ALL", "detail": "No validation issues were found."})
     return pd.DataFrame(issues)
@@ -179,16 +262,20 @@ def load_factor_settings(path: str | Path, sheet_map: dict[str, str] | None = No
     factor_sheet = sheet_map.get("factor_master", "Factor_Master")
     group_sheet = sheet_map.get("group_settings", "Group_Settings")
     param_sheet = sheet_map.get("method_params", "Group_Method_Params")
+    control_sheet = sheet_map.get("feature_control", "Feature_Engineering_Control")
+    rule_sheet = sheet_map.get("derived_rules", "Derived_Feature_Rules")
     xls = pd.ExcelFile(path)
     factor = _clean_factor_master(pd.read_excel(path, sheet_name=factor_sheet))
     groups = _clean_group_settings(pd.read_excel(path, sheet_name=group_sheet))
     params = _clean_method_params(pd.read_excel(path, sheet_name=param_sheet) if param_sheet in xls.sheet_names else None)
-    validation = validate_factor_settings(factor, groups, stock_columns)
+    feature_control = _clean_feature_control(pd.read_excel(path, sheet_name=control_sheet) if control_sheet in xls.sheet_names else None)
+    derived_rules = _clean_derived_rules(pd.read_excel(path, sheet_name=rule_sheet) if rule_sheet in xls.sheet_names else None)
+    validation = validate_factor_settings(factor, groups, stock_columns, feature_control, derived_rules)
     errors = validation[validation["severity"].eq("ERROR")]
     if not errors.empty:
         details = "; ".join(errors["check"].astype(str) + ":" + errors["item"].astype(str))
         raise ValueError(f"Factor master validation failed: {details}")
-    return FactorSettingsBundle(factor, groups, params, validation)
+    return FactorSettingsBundle(factor, groups, params, feature_control, derived_rules, validation)
 
 
 def factor_lookup(factor_master: pd.DataFrame) -> dict[str, dict[str, Any]]:

@@ -14,6 +14,7 @@ import pandas as pd
 from .binning import compute_factor_bins
 from .config import load_config
 from .factor_master import resolved_factor_settings
+from .feature_engineering import build_engineered_factor_panel
 from .io import infer_factor_columns, load_all
 from .modeling import (
     build_composite_oof,
@@ -127,10 +128,19 @@ def run_pipeline(config_path: str | Path) -> dict[str, Path]:
     LOGGER.info("Loading individual-stock inputs")
     data = load_all(config, config_path)
     stocks = data.stocks
-    factor_master = data.factor_settings.factor_master
+    base_factor_master = data.factor_settings.factor_master
     group_settings = data.factor_settings.group_settings
     method_params = data.factor_settings.method_params
-    factors = infer_factor_columns(stocks, data.factor_settings, config)
+    base_factors = infer_factor_columns(stocks, data.factor_settings, config)
+
+    LOGGER.info("Generating lag-safe derived factor features")
+    engineered = build_engineered_factor_panel(
+        stocks, base_factors, base_factor_master,
+        data.factor_settings.feature_control, data.factor_settings.derived_rules, config,
+    )
+    stocks = engineered.panel
+    factor_master = engineered.factor_master
+    factors = engineered.factor_codes
     factor_map = {f: f"{f}__z" for f in factors}
     config["runtime"] = {
         "factor_labels": factor_master.set_index("Factor_Code")["Factor_Name_JP"].to_dict(),
@@ -163,7 +173,7 @@ def run_pipeline(config_path: str | Path) -> dict[str, Path]:
 
     LOGGER.info("Building stock-scoring comparison scenarios")
     scenarios = build_stock_scoring_scenarios(
-        prep.panel, factors, factor_master, group_settings, method_params,
+        prep.panel, base_factors, factor_master, base_factor_master, group_settings, method_params,
         factor_oof, latest_factor, group_oof, latest_group,
         composite_oof, latest_stock, group_weight_all, config,
     )
@@ -220,6 +230,9 @@ def run_pipeline(config_path: str | Path) -> dict[str, Path]:
         "Group_Weight_Latest": _latest(group_weight_all, "date"),
         "Stock_Scores_Latest": latest_stock_small,
         "Data_Quality": pd.concat([prep.quality, validation], ignore_index=True, sort=False),
+        "Feature_Lineage": engineered.lineage,
+        "Feature_Engineering_Control": data.factor_settings.feature_control,
+        "Derived_Feature_Rules": data.factor_settings.derived_rules,
         "Factor_Master_Used": factor_master,
         "Group_Settings_Used": group_settings,
         "Resolved_Factor_Settings": resolved_factor_settings(factor_master, config),
@@ -310,7 +323,7 @@ def run_pipeline(config_path: str | Path) -> dict[str, Path]:
     inventory_path = output_dir / inventory_cfg.get("filename", "file_inventory.xlsx")
     inventory_rows = [
         {"stage": "Input", "requirement": "Required", "file_path": config["data"]["factors_file"], "file_type": "xlsx", "purpose": "個別銘柄の時点別ファクター値、リターン、時価総額、通貨、属性"},
-        {"stage": "Input", "requirement": "Required", "file_path": config["data"]["factor_master_file"], "file_type": "xlsx", "purpose": "FAコード、名称、グループ、方向、統合方法"},
+        {"stage": "Input", "requirement": "Required", "file_path": config["data"]["factor_master_file"], "file_type": "xlsx", "purpose": "FAコード、名称、グループ、方向、統合方法、差分・移動平均乖離の生成設定"},
         {"stage": "Config", "requirement": "Required", "file_path": str(config_path.relative_to(base_dir)), "file_type": "py", "purpose": "前処理、モデル、評価、出力可否"},
         {"stage": "Documentation", "requirement": "Reference", "file_path": "README.md", "file_type": "md", "purpose": "実行方法と個別銘柄分析フロー"},
         {"stage": "Documentation", "requirement": "Reference", "file_path": "docs/file_inventory.md", "file_type": "md", "purpose": "入力から出力までのファイル一覧"},

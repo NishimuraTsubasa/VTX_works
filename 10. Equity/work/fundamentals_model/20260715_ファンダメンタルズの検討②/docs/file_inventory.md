@@ -51,3 +51,16 @@
 - `group_weight_history.xlsx`
 - `pca_loading_history.xlsx`
 - `composite_coefficients.xlsx`
+
+## v0.7で追加した設定
+
+`data/input/factor_master.xlsx` に次のシートを追加しています。
+
+- `Feature_Engineering_Control`: グループ・FAコードごとの生成ON/OFF、all/selected、原系列利用
+- `Derived_Feature_Rules`: 差分・移動平均乖離等の式、窓、情報ラグ、選択フラグ
+
+`outputs/analysis_summary.xlsx` には次のシートを追加します。
+
+- `Feature_Lineage`
+- `Feature_Engineering_Control`
+- `Derived_Feature_Rules`

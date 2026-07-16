@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stock-scoring-model"
+version = "0.6.0"
+description = "Individual-stock scoring scenario comparison and quintile performance evaluation"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "pandas>=2.1",
+  "numpy>=1.26",
+  "scipy>=1.11",
+  "scikit-learn>=1.4",
+  "statsmodels>=0.14",
+  "matplotlib>=3.8",
+  "openpyxl>=3.1",
+  "XlsxWriter>=3.1"
+]
+
+[project.scripts]
+stock-scoring-model = "stock_scoring_model.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

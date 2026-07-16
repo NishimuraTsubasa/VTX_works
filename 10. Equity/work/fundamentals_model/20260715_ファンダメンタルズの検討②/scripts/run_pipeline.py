@@ -1,30 +1,22 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+sys.path.insert(0, str(ROOT / "src"))
 
 from stock_scoring_model.pipeline import run_pipeline
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="個別銘柄スコアリング分析パイプライン")
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=ROOT / "config" / "model_config.py",
-        help="Python辞書形式のConfigファイル",
-    )
-    return parser.parse_args()
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", default=str(ROOT / "config" / "model_config.py"))
+    args = parser.parse_args()
+    result = run_pipeline(args.config)
+    print(f"Completed: {result['output_dirs']['root']}")
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    outputs = run_pipeline(args.config)
-    for key, path in outputs.items():
-        print(f"{key}: {path}")
+    main()

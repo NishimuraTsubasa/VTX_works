@@ -1,276 +1,138 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from .preprocessing import _transform_raw
+from .master import FactorMeta
 
 
-@dataclass
-class FeatureEngineeringResult:
-    panel: pd.DataFrame
-    factor_master: pd.DataFrame
-    factor_codes: list[str]
-    lineage: pd.DataFrame
+def add_forward_return(data: pd.DataFrame, config: dict[str, Any]) -> pd.DataFrame:
+    c = config["columns"]
+    out = data.copy()
+    out[c["date"]] = pd.to_datetime(out[c["date"]])
+    out = out.sort_values([c["isin"], c["date"]]).reset_index(drop=True)
+    horizon = int(config["target"].get("stock_horizon_periods", 1))
+    alignment = config["target"].get("stock_return_alignment", "contemporaneous_to_forward")
+    if alignment == "contemporaneous_to_forward":
+        out["NextMonthReturn"] = out.groupby(c["isin"], sort=False)[c["stock_return"]].shift(-horizon)
+    elif alignment == "already_forward":
+        out["NextMonthReturn"] = pd.to_numeric(out[c["stock_return"]], errors="coerce")
+    else:
+        raise ValueError(f"未対応のstock_return_alignmentです: {alignment}")
+    return out
 
 
-def _resolve_control(
-    factor_code: str,
-    factor_group: str,
-    control: pd.DataFrame,
-    config: dict[str, Any],
-) -> dict[str, Any]:
-    defaults = config.get("feature_engineering", {}).get("defaults", {})
-    resolved = {
-        "Enabled": int(bool(defaults.get("enabled", False))),
-        "Generation_Mode": str(defaults.get("generation_mode", "selected")).lower(),
-        "Include_Raw": int(bool(defaults.get("include_raw", True))),
-        "Scope_Type": "default",
-        "Scope_Value": "DEFAULT",
-    }
-    if control is None or control.empty:
-        return resolved
-    factor_match = control[(control["Scope_Type"].eq("factor")) & (control["Scope_Value"].eq(factor_code))]
-    group_match = control[(control["Scope_Type"].eq("group")) & (control["Scope_Value"].eq(factor_group))]
-    match = factor_match if not factor_match.empty else group_match
-    if match.empty:
-        return resolved
-    row = match.iloc[-1]
-    for col in ["Enabled", "Generation_Mode", "Include_Raw", "Scope_Type", "Scope_Value"]:
-        resolved[col] = row[col]
-    resolved["Enabled"] = int(resolved["Enabled"])
-    resolved["Include_Raw"] = int(resolved["Include_Raw"])
-    resolved["Generation_Mode"] = str(resolved["Generation_Mode"]).lower()
-    return resolved
+def _control_for(code: str, group: str, control: pd.DataFrame) -> tuple[bool, str, bool]:
+    if control.empty:
+        return False, "selected", True
+    ctl = control.copy()
+    ctl = ctl[ctl.get("Scope_Value").notna()]
+    factor_rows = ctl[(ctl["Scope_Type"].astype(str).str.lower() == "factor") & (ctl["Scope_Value"].astype(str) == code)]
+    group_rows = ctl[(ctl["Scope_Type"].astype(str).str.lower() == "group") & (ctl["Scope_Value"].astype(str) == group)]
+    row = factor_rows.iloc[0] if not factor_rows.empty else (group_rows.iloc[0] if not group_rows.empty else None)
+    if row is None:
+        return False, "selected", True
+    return bool(int(row.get("Enabled", 0))), str(row.get("Generation_Mode", "selected")).lower(), bool(int(row.get("Include_Raw", 1)))
 
 
-def _rules_for_factor(
-    factor_code: str,
-    factor_group: str,
-    rules: pd.DataFrame,
-    generation_mode: str,
-) -> pd.DataFrame:
-    if rules is None or rules.empty:
-        return pd.DataFrame(columns=rules.columns if rules is not None else [])
-    matched = rules[
-        ((rules["Scope_Type"].eq("factor")) & (rules["Scope_Value"].eq(factor_code)))
-        | ((rules["Scope_Type"].eq("group")) & (rules["Scope_Value"].eq(factor_group)))
-    ].copy()
-    matched = matched[matched["Enabled"].astype(int).eq(1)]
-    if str(generation_mode).lower() == "selected":
-        matched = matched[matched["Selected"].astype(int).eq(1)]
-    return matched.drop_duplicates("Rule_ID", keep="last")
+def _applicable_rules(code: str, group: str, rules: pd.DataFrame, mode: str) -> pd.DataFrame:
+    if rules.empty:
+        return rules
+    r = rules.copy()
+    r = r[r.get("Scope_Value").notna()]
+    mask = (
+        ((r["Scope_Type"].astype(str).str.lower() == "factor") & (r["Scope_Value"].astype(str) == code))
+        | ((r["Scope_Type"].astype(str).str.lower() == "group") & (r["Scope_Value"].astype(str) == group))
+    )
+    r = r[mask]
+    r = r[pd.to_numeric(r.get("Enabled", 0), errors="coerce").fillna(0).astype(int) == 1]
+    if mode == "selected" and "Selected" in r:
+        r = r[pd.to_numeric(r["Selected"], errors="coerce").fillna(0).astype(int) == 1]
+    return r
 
 
-def _direction(base_direction: int, row: pd.Series) -> int:
+def _direction_from_rule(base: int, row: pd.Series) -> int:
     mode = str(row.get("Direction_Mode", "inherit")).lower()
     if mode == "reverse":
-        return -int(base_direction)
+        return -base
     if mode == "custom":
-        custom = int(row.get("Custom_Direction", 1))
-        return custom if custom in {-1, 1} else int(base_direction)
-    return int(base_direction)
+        value = int(pd.to_numeric(row.get("Custom_Direction", base), errors="coerce"))
+        return 1 if value >= 0 else -1
+    return base
 
 
-def _feature_code(base: str, row: pd.Series) -> str:
-    feature_type = str(row["Feature_Type"]).lower()
-    lag = int(row.get("Source_Lag_Periods", 1))
-    if feature_type == "difference":
-        p = int(row.get("Difference_Periods", 1))
-        return f"{base}__DIFF_P{p}_L{lag}"
-    if feature_type == "rolling_mean_deviation":
-        w = int(row.get("Window_Periods", 12))
-        return f"{base}__MADEV_W{w}_L{lag}"
-    if feature_type == "rolling_mean_ratio":
-        w = int(row.get("Window_Periods", 12))
-        return f"{base}__MARATIO_W{w}_L{lag}"
-    if feature_type == "expanding_mean_deviation":
-        return f"{base}__EXPDEV_L{lag}"
-    raise ValueError(f"Unsupported derived feature type: {feature_type}")
-
-
-def _feature_names(base_jp: str, base_en: str, row: pd.Series) -> tuple[str, str]:
-    feature_type = str(row["Feature_Type"]).lower()
-    lag = int(row.get("Source_Lag_Periods", 1))
-    if feature_type == "difference":
-        p = int(row.get("Difference_Periods", 1))
-        return f"{base_jp} 差分({p}期, 情報ラグ{lag})", f"{base_en} Difference({p}, lag {lag})"
-    if feature_type == "rolling_mean_deviation":
-        w = int(row.get("Window_Periods", 12))
-        return f"{base_jp} 移動平均乖離({w}期, 情報ラグ{lag})", f"{base_en} Rolling Mean Deviation({w}, lag {lag})"
-    if feature_type == "rolling_mean_ratio":
-        w = int(row.get("Window_Periods", 12))
-        return f"{base_jp} 移動平均比率({w}期, 情報ラグ{lag})", f"{base_en} Rolling Mean Ratio({w}, lag {lag})"
-    if feature_type == "expanding_mean_deviation":
-        return f"{base_jp} 過去平均乖離(情報ラグ{lag})", f"{base_en} Expanding Mean Deviation(lag {lag})"
-    return base_jp, base_en
-
-
-def _derive_for_one_stock(values: pd.Series, row: pd.Series) -> pd.Series:
-    feature_type = str(row["Feature_Type"]).lower()
-    source_lag = int(row.get("Source_Lag_Periods", 1))
-    source = values.shift(source_lag)
-    if feature_type == "difference":
-        periods = int(row.get("Difference_Periods", 1))
-        return source - values.shift(source_lag + periods)
-
-    exclude_source = bool(int(row.get("Exclude_Source_From_Baseline", 1)))
-    baseline_shift = source_lag + (1 if exclude_source else 0)
-    baseline_source = values.shift(baseline_shift)
-    min_periods = max(1, int(row.get("Min_Periods", 3)))
-
-    if feature_type in {"rolling_mean_deviation", "rolling_mean_ratio"}:
-        window = max(1, int(row.get("Window_Periods", 12)))
-        baseline = baseline_source.rolling(window=window, min_periods=min(min_periods, window)).mean()
-        if feature_type == "rolling_mean_deviation":
-            return source - baseline
-        return source / baseline.where(baseline.abs() > 1e-12) - 1.0
-
-    if feature_type == "expanding_mean_deviation":
-        baseline = baseline_source.expanding(min_periods=min_periods).mean()
-        return source - baseline
-
-    raise ValueError(f"Unsupported derived feature type: {feature_type}")
-
-
-def build_engineered_factor_panel(
-    stocks: pd.DataFrame,
-    base_factor_codes: list[str],
-    factor_master: pd.DataFrame,
-    feature_control: pd.DataFrame,
-    derived_rules: pd.DataFrame,
+def generate_derived_features(
+    data: pd.DataFrame,
     config: dict[str, Any],
-) -> FeatureEngineeringResult:
-    """Create lag-safe derived factors and an expanded factor master.
+    metas: dict[str, FactorMeta],
+    control: pd.DataFrame,
+    rules: pd.DataFrame,
+) -> tuple[pd.DataFrame, dict[str, FactorMeta], pd.DataFrame]:
+    c = config["columns"]
+    out = data.sort_values([c["isin"], c["date"]]).copy()
+    all_metas = dict(metas)
+    lineage: list[dict[str, Any]] = []
 
-    Derived values are stored on scoring date t, but use source observations no later than
-    t - Source_Lag_Periods. With the default one-period forward target, a source lag of 1
-    creates a two-period gap between the latest source factor observation (t-1) and the
-    realized target return (t+1).
-    """
-    cols = config["columns"]
-    date_col, isin_col = cols["date"], cols["isin"]
-    base_horizon = int(config.get("target", {}).get("stock_horizon_periods", 1))
-    enabled_global = bool(config.get("feature_engineering", {}).get("enabled", True))
-
-    out = stocks.sort_values([isin_col, date_col]).copy()
-    base_master = factor_master[factor_master["Factor_Code"].astype(str).isin(base_factor_codes)].copy()
-    expanded_rows: list[dict[str, Any]] = []
-    lineage_rows: list[dict[str, Any]] = []
-    all_codes: list[str] = []
-
-    for _, base_row in base_master.iterrows():
-        base = str(base_row["Factor_Code"])
-        group = str(base_row["Factor_Group"])
-        control = _resolve_control(base, group, feature_control, config)
-        include_raw = bool(control["Include_Raw"]) or not (enabled_global and bool(control["Enabled"]))
-        # Base factors are always preprocessed so the S00-S05 baseline scenarios remain available.
-        # Include_Raw controls whether the raw series enters the enhanced S06/S07 model.
-        raw_row = base_row.to_dict()
-        raw_row.update({
-            "Enabled": int(base_row.get("Enabled", 1)) if include_raw else 0,
-            "Base_Factor_Code": base,
-            "Feature_Type": "raw",
-            "Rule_ID": "RAW",
-            "Source_Lag_Periods": 0,
-            "Effective_Target_Gap_Periods": base_horizon,
-            "Is_Derived": 0,
-        })
-        expanded_rows.append(raw_row)
-        all_codes.append(base)
-        lineage_rows.append({
-            "Factor_Code": base,
-            "Base_Factor_Code": base,
-            "Factor_Group": group,
-            "Feature_Type": "raw",
-            "Rule_ID": "RAW",
-            "Source_Lag_Periods": 0,
-            "Base_Target_Horizon_Periods": base_horizon,
-            "Effective_Target_Gap_Periods": base_horizon,
-            "Formula": "x[t]",
-            "Control_Scope": control["Scope_Type"],
-            "Control_Value": control["Scope_Value"],
-            "Generation_Mode": control["Generation_Mode"],
-            "Used_In_Model": int(include_raw),
-        })
-
-        if not enabled_global or not bool(control["Enabled"]):
+    for code, meta in metas.items():
+        enabled, mode, include_raw = _control_for(code, meta.group, control)
+        if not include_raw:
+            all_metas.pop(code, None)
+        if not enabled:
             continue
-        applicable = _rules_for_factor(base, group, derived_rules, control["Generation_Mode"])
+        applicable = _applicable_rules(code, meta.group, rules, mode)
         if applicable.empty:
             continue
-
-        transformed = _transform_raw(out[base], str(base_row.get("Transform", "none")).lower())
-        temp = pd.DataFrame({isin_col: out[isin_col], date_col: out[date_col], "value": transformed}, index=out.index)
-        for _, rule in applicable.iterrows():
-            code = _feature_code(base, rule)
-            if code in out.columns:
-                continue
-            derived = temp.groupby(isin_col, group_keys=False)["value"].apply(lambda s: _derive_for_one_stock(s, rule))
-            derived = derived.reindex(out.index)
-            out[code] = derived
-
-            jp, en = _feature_names(str(base_row["Factor_Name_JP"]), str(base_row["Factor_Name_EN"]), rule)
-            drow = base_row.to_dict()
-            drow.update({
-                "Factor_Code": code,
-                "Factor_Name_JP": jp,
-                "Factor_Name_EN": en,
-                "Direction": _direction(int(base_row["Direction"]), rule),
-                "Transform": "none",
-                "Base_Factor_Code": base,
-                "Feature_Type": str(rule["Feature_Type"]),
-                "Rule_ID": str(rule["Rule_ID"]),
-                "Source_Lag_Periods": int(rule["Source_Lag_Periods"]),
-                "Effective_Target_Gap_Periods": base_horizon + int(rule["Source_Lag_Periods"]),
-                "Is_Derived": 1,
-                "Description": str(rule.get("Description", "")) or jp,
-            })
-            expanded_rows.append(drow)
-            all_codes.append(code)
-
-            ft = str(rule["Feature_Type"])
-            source_lag = int(rule["Source_Lag_Periods"])
-            if ft == "difference":
-                p = int(rule["Difference_Periods"])
-                formula = f"x[t-{source_lag}] - x[t-{source_lag + p}]"
-            elif ft == "rolling_mean_deviation":
-                w = int(rule["Window_Periods"])
-                formula = f"x[t-{source_lag}] - mean(prior {w} values, source excluded={int(rule['Exclude_Source_From_Baseline'])})"
-            elif ft == "rolling_mean_ratio":
-                w = int(rule["Window_Periods"])
-                formula = f"x[t-{source_lag}] / mean(prior {w} values) - 1"
+        grouped = out.groupby(c["isin"], sort=False)[code]
+        for _, row in applicable.iterrows():
+            ftype = str(row.get("Feature_Type", "")).lower()
+            lag = int(pd.to_numeric(row.get("Source_Lag_Periods", 1), errors="coerce") or 1)
+            source = grouped.shift(lag)
+            rule_id = str(row.get("Rule_ID", ftype)).strip()
+            direction = _direction_from_rule(meta.direction, row)
+            if ftype == "difference":
+                period = int(pd.to_numeric(row.get("Difference_Periods", 1), errors="coerce") or 1)
+                name = f"{code}__DIFF_P{period}_L{lag}"
+                out[name] = source - grouped.shift(lag + period)
+            elif ftype in {"rolling_mean_deviation", "rolling_mean_ratio"}:
+                window = int(pd.to_numeric(row.get("Window_Periods", 12), errors="coerce") or 12)
+                minp = int(pd.to_numeric(row.get("Min_Periods", window), errors="coerce") or window)
+                exclude = bool(int(pd.to_numeric(row.get("Exclude_Source_From_Baseline", 1), errors="coerce") or 0))
+                baseline_lag = lag + 1 if exclude else lag
+                baseline_source = grouped.shift(baseline_lag)
+                baseline = baseline_source.groupby(out[c["isin"]], sort=False).transform(
+                    lambda s: s.rolling(window, min_periods=minp).mean()
+                )
+                if ftype == "rolling_mean_deviation":
+                    name = f"{code}__MADEV_W{window}_L{lag}"
+                    out[name] = source - baseline
+                else:
+                    name = f"{code}__MARATIO_W{window}_L{lag}"
+                    out[name] = source / baseline.replace(0, np.nan) - 1.0
+            elif ftype == "expanding_mean_deviation":
+                minp = int(pd.to_numeric(row.get("Min_Periods", 12), errors="coerce") or 12)
+                exclude = bool(int(pd.to_numeric(row.get("Exclude_Source_From_Baseline", 1), errors="coerce") or 0))
+                baseline_lag = lag + 1 if exclude else lag
+                baseline_source = grouped.shift(baseline_lag)
+                baseline = baseline_source.groupby(out[c["isin"]], sort=False).transform(
+                    lambda s: s.expanding(min_periods=minp).mean()
+                )
+                name = f"{code}__EXPDEV_L{lag}"
+                out[name] = source - baseline
             else:
-                formula = f"x[t-{source_lag}] - expanding_mean(prior values)"
-            lineage_rows.append({
-                "Factor_Code": code,
-                "Base_Factor_Code": base,
-                "Factor_Group": group,
-                "Feature_Type": ft,
-                "Rule_ID": str(rule["Rule_ID"]),
-                "Difference_Periods": int(rule["Difference_Periods"]),
-                "Window_Periods": int(rule["Window_Periods"]),
-                "Min_Periods": int(rule["Min_Periods"]),
-                "Source_Lag_Periods": source_lag,
-                "Base_Target_Horizon_Periods": base_horizon,
-                "Effective_Target_Gap_Periods": base_horizon + source_lag,
-                "Formula": formula,
-                "Control_Scope": control["Scope_Type"],
-                "Control_Value": control["Scope_Value"],
-                "Generation_Mode": control["Generation_Mode"],
-                "Selected_Rule": int(rule["Selected"]),
-                "Used_In_Model": 1,
+                continue
+            all_metas[name] = replace(meta, code=name, direction=direction)
+            lineage.append({
+                "Feature_Code": name,
+                "Source_Factor": code,
+                "Factor_Group": meta.group,
+                "Rule_ID": rule_id,
+                "Feature_Type": ftype,
+                "Source_Lag_Periods": lag,
+                "Target_Horizon_Periods": int(config["target"].get("stock_horizon_periods", 1)),
+                "Effective_Source_to_Target_Gap": lag + int(config["target"].get("stock_horizon_periods", 1)),
+                "Direction": direction,
             })
-
-    expanded = pd.DataFrame(expanded_rows)
-    if expanded.empty:
-        expanded = base_master.copy()
-    # Preserve the original master column order and append lineage columns.
-    original_cols = list(factor_master.columns)
-    extra_cols = [c for c in expanded.columns if c not in original_cols]
-    expanded = expanded[original_cols + extra_cols].reset_index(drop=True)
-    lineage = pd.DataFrame(lineage_rows)
-    return FeatureEngineeringResult(out, expanded, all_codes, lineage)
+    return out, all_metas, pd.DataFrame(lineage)

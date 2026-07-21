@@ -8,5 +8,7 @@ SCENARIO_DESCRIPTIONS = {
     "S04_Hierarchical_Equal_Weight": "FAグループ内・グループ間の階層等ウェイト",
     "S05_Correlation_Adjusted_IC": "相関調整ICウェイトでグループ集約",
     "S06_Selected_Factor_Models": "グローバル単一FAのOOF SubScoreをFactorScoreへ集約",
-    "S07_Layer3_Final_Model": "国別・地域・部分プーリングを選択する第3層最終モデル",
+    "S07_OLS_Linear": "第3層を線形基底のみのOLSで推定",
+    "S07_Ridge_Linear": "第3層を線形基底のみのRidgeで推定",
+    "S07_Ridge_Flexible": "第3層を線形・区分線形・二次基底のRidgeで推定（補助比較）",
 }

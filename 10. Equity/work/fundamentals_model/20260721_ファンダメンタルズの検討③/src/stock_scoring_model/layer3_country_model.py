@@ -14,8 +14,9 @@ def fit_country_models(
     penalties,
     config: dict[str, Any],
     target_col: str = "NextMonthReturn",
+    eligible_rows: pd.Series | None = None,
 ) -> Layer3Prediction:
     country = data[config["columns"]["country"]].astype(str)
     if config["layer3"].get("training_mode", "rolling_pooled") == "cross_sectional_coefficient_average":
-        return rolling_cross_sectional_coefficient_average(data, X, penalties, config, country, "country_independent", target_col)
-    return rolling_pooled_prediction(data, X, penalties, config, country, "country_independent", target_col)
+        return rolling_cross_sectional_coefficient_average(data, X, penalties, config, country, "country_independent", target_col, eligible_rows)
+    return rolling_pooled_prediction(data, X, penalties, config, country, "country_independent", target_col, eligible_rows)

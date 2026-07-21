@@ -119,6 +119,9 @@ def apply_layer3_excel_settings(config: dict[str, Any], settings: dict[str, Any]
         "Include_Nonlinear_Basis": "include_nonlinear_basis",
         "Include_Sector_Dummy": "include_sector_group_dummy",
         "Include_Sector_Factor_Interaction": "include_sector_factor_interactions",
+        "Lookback_Periods": "lookback_periods",
+        "Minimum_Train_Periods": "minimum_train_periods",
+        "Ridge_Validation_Periods": "ridge_validation_periods",
     }
     for excel_key, cfg_key in mapping.items():
         if excel_key not in settings or pd.isna(settings[excel_key]):
@@ -126,7 +129,22 @@ def apply_layer3_excel_settings(config: dict[str, Any], settings: dict[str, Any]
         value = settings[excel_key]
         if cfg_key.startswith("include_"):
             value = bool(int(value))
+        elif cfg_key.endswith("_periods"):
+            value = int(value)
         config["layer3"][cfg_key] = value
+
+    variant_keys = {
+        "S07_OLS_Linear_Enabled": "S07_OLS_Linear",
+        "S07_Ridge_Linear_Enabled": "S07_Ridge_Linear",
+        "S07_Ridge_Flexible_Enabled": "S07_Ridge_Flexible",
+    }
+    for excel_key, scenario_name in variant_keys.items():
+        if excel_key not in settings or pd.isna(settings[excel_key]):
+            continue
+        enabled = bool(int(settings[excel_key]))
+        config.setdefault("scenarios", {})[scenario_name] = enabled
+        if scenario_name in config["layer3"].get("s07_variants", {}):
+            config["layer3"]["s07_variants"][scenario_name]["enabled"] = enabled
     return config
 
 

@@ -1,4 +1,4 @@
-"""個別銘柄スコアリングモデル v0.12 のユーザー設定。
+"""個別銘柄スコアリングモデル v0.12.2 のユーザー設定。
 
 個別FAの分類・方向・派生特徴量、国-地域対応、セクターグループ、
 交差項の利用可否は data/input/factor_master.xlsx で管理します。
@@ -39,9 +39,10 @@ CONFIG = {
     "layer1": {
         # グローバル単一FAモデル
         "candidate_models": ["linear", "piecewise", "quadratic"],
-        "training_window_periods": 18,
-        "minimum_train_periods": 12,
-        "validation_periods": 3,
+        "training_window_periods": 36,
+        # データ開始が2018年のため、初回OOFを過度に遅らせない18か月を既定値とする。
+        "minimum_train_periods": 18,
+        "validation_periods": 6,
         "minimum_fit_observations": 200,
         "minimum_validation_observations": 100,
         "piecewise_knot": 0.0,
@@ -67,11 +68,16 @@ CONFIG = {
         ],
         # rolling_pooled / cross_sectional_coefficient_average
         "training_mode": "rolling_pooled",
-        "lookback_periods": 18,
+        "lookback_periods": 36,
+        # Layer1 OOF開始後、12か月分のFactorScoreが蓄積したら第3層OOSを開始。
         "minimum_train_periods": 12,
         "minimum_stocks_per_country_date": 10,
         "minimum_stocks_per_sector_group": 5,
-        "minimum_training_observations": 250,
+        "minimum_training_observations": 150,
+        "minimum_factor_score_coverage": 0.50,
+        # ridge / ols。S07の比較はs07_variantsで個別指定する。
+        "estimator": "ridge",
+        "ridge_validation_periods": 6,
         "include_nonlinear_basis": True,
         "nonlinear_basis": ["linear", "piecewise", "quadratic"],
         "piecewise_knot": 0.0,
@@ -88,6 +94,25 @@ CONFIG = {
         "fallback_scope": "regional_pooling",
         # country / global。国別モデルの比較可能性を考え既定はcountry
         "final_score_rank_scope": "country",
+        # S07内の比較。OLSとRidgeは同じ線形基底・同じOOS開始条件で比較する。
+        "s07_variants": {
+            "S07_OLS_Linear": {
+                "enabled": True,
+                "estimator": "ols",
+                "nonlinear_basis": ["linear"],
+            },
+            "S07_Ridge_Linear": {
+                "enabled": True,
+                "estimator": "ridge",
+                "nonlinear_basis": ["linear"],
+            },
+            # 現行の柔軟な3基底Ridgeは補助比較。必要時のみ有効化する。
+            "S07_Ridge_Flexible": {
+                "enabled": False,
+                "estimator": "ridge",
+                "nonlinear_basis": ["linear", "piecewise", "quadratic"],
+            },
+        },
     },
     "scenarios": {
         "S00_Current_Direct_EW": True,
@@ -98,8 +123,10 @@ CONFIG = {
         "S05_Correlation_Adjusted_IC": True,
         # 第1層 + 第2層までの予測
         "S06_Selected_Factor_Models": True,
-        # 第3層のprimary_scopeによる最終モデル
-        "S07_Layer3_Final_Model": True,
+        # 第3層はlayer3.s07_variantsでOLS/Ridgeを個別に有効化。
+        "S07_OLS_Linear": True,
+        "S07_Ridge_Linear": True,
+        "S07_Ridge_Flexible": False,
     },
     "binscatter": {
         "enabled": True,
@@ -136,11 +163,21 @@ CONFIG = {
         "rolling_rank_ic_periods": 12,
         "annualization": 12,
         "transaction_cost_bps_one_way": 0.0,
+        # 全シナリオでDate×ISINが共通する純粋OOSサンプルを主比較に使用。
+        "common_oos": {
+            "enabled": True,
+            "universe_mode": "stock_date_intersection",
+            "rerank_on_common_universe": True,
+            "benchmark_scenario": "S03_Neutralized_Direct_EW",
+            "minimum_stocks_per_date": 30,
+            "minimum_periods_warning": 24,
+        },
     },
     "outputs": {
         "output_dir": "outputs",
         "analysis_summary_xlsx": True,
         "layer3_diagnostics_xlsx": True,
+        "s07_estimator_comparison_xlsx": True,
         "scenario_excel": {
             "enabled": True,
             "date_scope": "latest",
@@ -167,6 +204,7 @@ CONFIG = {
             "layer3_country_diagnostics": True,
             "coefficient_stability": True,
             "sector_factor_interactions": True,
+            "s07_estimator_comparison": True,
         },
     },
 }

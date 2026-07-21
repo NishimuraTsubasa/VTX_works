@@ -43,23 +43,23 @@ def write_scenario_comparison_pdf(
     summary: pd.DataFrame,
     quintiles: pd.DataFrame,
     rank_ic_history: pd.DataFrame,
+    common_quintiles: pd.DataFrame,
+    common_rank_ic_history: pd.DataFrame,
     output_path: Path,
     config: dict[str, Any],
 ) -> None:
     _setup_matplotlib()
     ls_curves = cumulative_long_short(quintiles, int(config["evaluation"].get("quintiles", 5)))
+    common_ls_curves = cumulative_long_short(common_quintiles, int(config["evaluation"].get("quintiles", 5)))
     rolling = int(config["evaluation"].get("rolling_rank_ic_periods", 12))
     with PdfPages(output_path) as pdf:
         # Page 1: 共通OOS期間のLS cumulative（シナリオ間の公平比較）
         fig, ax = plt.subplots(figsize=(11.69, 8.27))
         common_start = pd.to_datetime(summary["CommonStartDate"].dropna().iloc[0]) if not summary.empty and summary["CommonStartDate"].notna().any() else None
         common_end = pd.to_datetime(summary["CommonEndDate"].dropna().iloc[0]) if not summary.empty and summary["CommonEndDate"].notna().any() else None
-        for scenario, series in ls_curves.items():
-            s = series
-            if common_start is not None and common_end is not None:
-                s = s[(pd.to_datetime(s.index) >= common_start) & (pd.to_datetime(s.index) <= common_end)]
-                if not s.empty:
-                    s = s / s.iloc[0]
+        for scenario, s in common_ls_curves.items():
+            if not s.empty:
+                s = s / s.iloc[0]
             ax.plot(s.index, s.values, label=scenario, linewidth=1.7)
         period_note = f"共通OOS期間: {common_start.date()} - {common_end.date()}" if common_start is not None and common_end is not None else "共通OOS期間なし"
         ax.set_title("シナリオ別 Q5-Q1 累積リターン（共通OOS期間）", fontsize=15, fontweight="bold")
@@ -85,11 +85,11 @@ def write_scenario_comparison_pdf(
 
         # Page 3: rolling rank IC
         fig, ax = plt.subplots(figsize=(11.69, 8.27))
-        for scenario, g in rank_ic_history.groupby("Scenario"):
+        for scenario, g in common_rank_ic_history.groupby("Scenario"):
             g = g.sort_values("Date")
             ax.plot(g["Date"], g["RankIC"].rolling(rolling, min_periods=max(3, rolling // 2)).mean(), label=scenario, linewidth=1.5)
         ax.axhline(0, linewidth=0.8)
-        ax.set_title(f"シナリオ別 ローリング{rolling}期間平均RankIC", fontsize=15, fontweight="bold")
+        ax.set_title(f"シナリオ別 ローリング{rolling}期間平均RankIC（共通OOS）", fontsize=15, fontweight="bold")
         ax.grid(alpha=0.2)
         ax.legend(fontsize=8, loc="upper left")
         fig.tight_layout()
@@ -110,6 +110,25 @@ def write_scenario_comparison_pdf(
             pdf.savefig(fig, bbox_inches="tight")
             plt.close(fig)
 
+        # Page 5: S03との月次RankIC差
+        benchmark = str(config["evaluation"].get("common_oos", {}).get("benchmark_scenario", "S03_Neutralized_Direct_EW"))
+        if not common_rank_ic_history.empty and benchmark in set(common_rank_ic_history["Scenario"]):
+            pivot = common_rank_ic_history.pivot(index="Date", columns="Scenario", values="RankIC").sort_index()
+            fig, ax = plt.subplots(figsize=(11.69, 8.27))
+            for scenario in pivot.columns:
+                if scenario == benchmark:
+                    continue
+                delta = (pivot[scenario] - pivot[benchmark]).dropna()
+                if not delta.empty:
+                    ax.plot(delta.index, delta.rolling(rolling, min_periods=max(3, rolling // 2)).mean(), label=f"{scenario} - {benchmark}")
+            ax.axhline(0, linewidth=0.8)
+            ax.set_title(f"共通OOS | ローリング{rolling}期間 RankIC差（対{benchmark}）", fontsize=15, fontweight="bold")
+            ax.grid(alpha=0.2)
+            ax.legend(fontsize=8, loc="upper left")
+            fig.tight_layout()
+            pdf.savefig(fig, bbox_inches="tight")
+            plt.close(fig)
+
 
 def _write_dataframe(writer: pd.ExcelWriter, df: pd.DataFrame, sheet: str) -> None:
     if df is None or df.empty:
@@ -123,17 +142,22 @@ def write_analysis_summary(
     summary: pd.DataFrame,
     quintiles: pd.DataFrame,
     rank_ic: pd.DataFrame,
+    common_quintiles: pd.DataFrame,
+    common_rank_ic: pd.DataFrame,
     layer1_selection: pd.DataFrame,
     layer2_weights: pd.DataFrame,
     feature_lineage: pd.DataFrame,
 ) -> None:
     with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
         readme = pd.DataFrame({
-            "Sheet": ["Scenario_Comparison", "Quintile_Summary", "RankIC_History", "Layer1_Model_Selection", "Layer2_Weights", "Feature_Lineage"],
+            "Sheet": ["Scenario_Comparison", "Quintile_Summary", "RankIC_History", "Common_Quintiles", "Common_RankIC", "Common_RankIC_Delta", "Layer1_Model_Selection", "Layer2_Weights", "Feature_Lineage"],
             "Content": [
-                "S00-S07の主要評価指標",
-                "シナリオ・分位別リターン集計",
-                "月次RankIC履歴",
+                "全期間とDate×ISIN共通OOSの主要評価指標",
+                "各モデル利用可能期間の分位別リターン",
+                "各モデル利用可能期間の月次RankIC",
+                "共通OOS銘柄集合の分位別リターン",
+                "共通OOS銘柄集合の月次RankIC",
+                "共通OOSにおけるS03とのRankIC差",
                 "グローバル単一FAのOOFモデル選択履歴",
                 "SubScoreからFactorScoreへ集約したウェイト履歴",
                 "元FAコードから派生特徴量への系譜",
@@ -144,6 +168,11 @@ def write_analysis_summary(
         qsum = quintiles.groupby(["Scenario", "Quintile"]).agg(MeanReturn=("Return", "mean"), StdReturn=("Return", "std"), Periods=("Date", "nunique")).reset_index() if not quintiles.empty else pd.DataFrame()
         _write_dataframe(writer, qsum, "Quintile_Summary")
         _write_dataframe(writer, rank_ic, "RankIC_History")
+        _write_dataframe(writer, common_quintiles, "Common_Quintiles")
+        _write_dataframe(writer, common_rank_ic, "Common_RankIC")
+        from .evaluation import rank_ic_delta_table
+        benchmark = "S03_Neutralized_Direct_EW"
+        _write_dataframe(writer, rank_ic_delta_table(common_rank_ic, benchmark), "Common_RankIC_Delta")
         _write_dataframe(writer, layer1_selection, "Layer1_Model_Selection")
         _write_dataframe(writer, layer2_weights, "Layer2_Weights")
         _write_dataframe(writer, feature_lineage, "Feature_Lineage")
@@ -209,6 +238,7 @@ def _component_frame(
             "NextMonthReturn": data["NextMonthReturn"],
         }
     )
+    out["RankScope"] = "global"
     out["TotalScore"] = out.groupby("Date")["Prediction"].rank(pct=True)
     qn = int(config["evaluation"].get("quintiles", 5))
     def qcut_safe(s: pd.Series) -> pd.Series:
@@ -225,7 +255,7 @@ def _component_evaluation(
     data: pd.DataFrame,
     two_stage: dict[str, pd.DataFrame | pd.Series],
     config: dict[str, Any],
-) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     from .evaluation import evaluate_scenarios
     from .scenarios import ScenarioResult
 
@@ -255,7 +285,7 @@ def write_two_stage_diagnostics_pdf(
     config: dict[str, Any],
 ) -> None:
     _setup_matplotlib()
-    summary, quintiles, rank_ic = _component_evaluation(data, two_stage, config)
+    summary, quintiles, rank_ic, common_quintiles, common_rank_ic = _component_evaluation(data, two_stage, config)
     ls_curves = cumulative_long_short(quintiles, int(config["evaluation"].get("quintiles", 5)))
     rolling = int(config["evaluation"].get("rolling_rank_ic_periods", 12))
 
@@ -330,7 +360,7 @@ def write_two_stage_diagnostics_excel(
     config: dict[str, Any],
 ) -> None:
     c = config["columns"]
-    summary, quintiles, rank_ic = _component_evaluation(data, two_stage, config)
+    summary, quintiles, rank_ic, common_quintiles, common_rank_ic = _component_evaluation(data, two_stage, config)
     stock = data[[c["date"], c["isin"], c["country"], c["sector"], "NextMonthReturn", "NextMonthCountrySectorReturn", "NextMonthWithinReturn"]].copy()
     stock = stock.rename(columns={c["date"]: "Date", c["isin"]: "ISIN", c["country"]: "Country", c["sector"]: "Sector"})
     stock["CountrySectorPrediction"] = two_stage["CountrySectorStockPrediction"]
@@ -391,6 +421,7 @@ def _layer3_component_results(
             "Prediction": pred,
             "NextMonthReturn": data["NextMonthReturn"],
         })
+        stock["RankScope"] = rank_scope
         if rank_scope == "country":
             stock["TotalScore"] = stock.groupby(["Date", "Country"])["Prediction"].rank(pct=True)
             group_cols = ["Date", "Country"]
@@ -421,9 +452,10 @@ def write_layer3_scope_comparison_pdf(
     from .evaluation import evaluate_scenarios
     _setup_matplotlib()
     results = _layer3_component_results(data, layer3, config)
-    summary, quintiles, rank_ic = evaluate_scenarios(results, config)
-    ls_curves = cumulative_long_short(quintiles, int(config["evaluation"].get("quintiles", 5)))
+    summary, quintiles, rank_ic, common_quintiles, common_rank_ic = evaluate_scenarios(results, config)
+    ls_curves = cumulative_long_short(common_quintiles, int(config["evaluation"].get("quintiles", 5)))
     rolling = int(config["evaluation"].get("rolling_rank_ic_periods", 12))
+    rank_ic = common_rank_ic
     with PdfPages(output_path) as pdf:
         fig, ax = plt.subplots(figsize=(11.69, 8.27))
         for scope, series in ls_curves.items():
@@ -543,12 +575,14 @@ def write_layer3_diagnostics_excel(
 ) -> None:
     from .evaluation import evaluate_scenarios
     results = _layer3_component_results(data, layer3, config)
-    summary, quintiles, rank_ic = evaluate_scenarios(results, config)
+    summary, quintiles, rank_ic, common_quintiles, common_rank_ic = evaluate_scenarios(results, config)
     with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
-        pd.DataFrame({"Sheet": ["Scope_Summary", "Scope_Quintiles", "Scope_RankIC", "Predictions", "Coefficients", "Model_History"], "Content": ["第3層範囲比較", "5分位履歴", "RankIC履歴", "銘柄別予測", "係数履歴", "学習履歴"]}).to_excel(writer, sheet_name="README", index=False)
+        pd.DataFrame({"Sheet": ["Scope_Summary", "Scope_Quintiles", "Scope_RankIC", "Common_Quintiles", "Common_RankIC", "Predictions", "Coefficients", "Model_History"], "Content": ["第3層範囲比較", "全利用可能期間の5分位履歴", "全利用可能期間のRankIC履歴", "共通OOSの5分位履歴", "共通OOSのRankIC履歴", "銘柄別予測", "係数履歴", "学習履歴"]}).to_excel(writer, sheet_name="README", index=False)
         summary.to_excel(writer, sheet_name="Scope_Summary", index=False)
         quintiles.to_excel(writer, sheet_name="Scope_Quintiles", index=False)
         rank_ic.to_excel(writer, sheet_name="Scope_RankIC", index=False)
+        common_quintiles.to_excel(writer, sheet_name="Common_Quintiles", index=False)
+        common_rank_ic.to_excel(writer, sheet_name="Common_RankIC", index=False)
         c = config["columns"]
         pred = data[[c["date"], c["isin"], c["country"], c["sector"], "NextMonthReturn"]].copy().rename(columns={c["date"]: "Date", c["isin"]: "ISIN", c["country"]: "Country", c["sector"]: "Sector"})
         for scope, payload in layer3.items():
@@ -591,3 +625,133 @@ def write_layer3_history_files(
             interactions = pd.concat(frames, ignore_index=True)
             interactions = interactions[interactions["Feature"].astype(str).str.startswith("INT__")]
             interactions.to_excel(output_dir / "sector_interaction_history.xlsx", index=False)
+
+
+def _s07_variant_results(
+    data: pd.DataFrame,
+    variants: dict[str, dict[str, pd.DataFrame | pd.Series]],
+    config: dict[str, Any],
+) -> dict[str, ScenarioResult]:
+    results: dict[str, ScenarioResult] = {}
+    c = config["columns"]
+    rank_scope = str(config["layer3"].get("final_score_rank_scope", "country"))
+    qn = int(config["evaluation"].get("quintiles", 5))
+    for name, payload in variants.items():
+        pred = payload["Prediction"]
+        stock = pd.DataFrame({
+            "Scenario": name,
+            "Date": data[c["date"]],
+            "ISIN": data[c["isin"]],
+            "Country": data[c["country"]],
+            "Sector": data[c["sector"]],
+            "Currency": data[c["currency"]],
+            "MarketCap": data[c["market_cap"]],
+            "Prediction": pred,
+            "NextMonthReturn": data["NextMonthReturn"],
+            "RankScope": rank_scope,
+        })
+        group_cols = ["Date", "Country"] if rank_scope == "country" else ["Date"]
+        stock["TotalScore"] = stock.groupby(group_cols)["Prediction"].rank(pct=True)
+        def qcut_safe(s: pd.Series) -> pd.Series:
+            valid = s.notna()
+            out = pd.Series(pd.NA, index=s.index, dtype="Int64")
+            if int(valid.sum()) >= qn:
+                out.loc[valid] = pd.qcut(s.loc[valid].rank(method="first"), qn, labels=range(1, qn + 1)).astype(int)
+            return out
+        qseries = stock.groupby(group_cols, group_keys=False)["TotalScore"].apply(qcut_safe)
+        if isinstance(qseries.index, pd.MultiIndex):
+            qseries = qseries.reset_index(level=list(range(qseries.index.nlevels - 1)), drop=True)
+        stock["Quintile"] = qseries.reindex(stock.index)
+        results[name] = ScenarioResult(stock, pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame())
+    return results
+
+
+def write_s07_estimator_comparison_pdf(
+    data: pd.DataFrame,
+    variants: dict[str, dict[str, pd.DataFrame | pd.Series]],
+    output_path: Path,
+    config: dict[str, Any],
+) -> None:
+    if not variants:
+        return
+    from .evaluation import evaluate_scenarios
+    _setup_matplotlib()
+    results = _s07_variant_results(data, variants, config)
+    summary, _, _, common_q, common_ic = evaluate_scenarios(results, config)
+    curves = cumulative_long_short(common_q, int(config["evaluation"].get("quintiles", 5)))
+    rolling = int(config["evaluation"].get("rolling_rank_ic_periods", 12))
+    with PdfPages(output_path) as pdf:
+        fig, ax = plt.subplots(figsize=(11.69, 8.27))
+        for name, s in curves.items():
+            if not s.empty:
+                s = s / s.iloc[0]
+            ax.plot(s.index, s.values, label=name, linewidth=1.8)
+        ax.set_title("S07推定方式比較 | Q5-Q1累積リターン（共通OOS）", fontsize=15, fontweight="bold")
+        ax.grid(alpha=0.2); ax.legend(loc="upper left"); ax.set_ylabel("Cumulative Wealth")
+        fig.tight_layout(); pdf.savefig(fig, bbox_inches="tight"); plt.close(fig)
+
+        fig, ax = plt.subplots(figsize=(11.69, 8.27))
+        for name, g in common_ic.groupby("Scenario"):
+            g = g.sort_values("Date")
+            ax.plot(g["Date"], g["RankIC"].rolling(rolling, min_periods=max(3, rolling // 2)).mean(), label=name, linewidth=1.7)
+        ax.axhline(0, linewidth=0.8)
+        ax.set_title(f"S07推定方式比較 | ローリング{rolling}期間RankIC（共通OOS）", fontsize=15, fontweight="bold")
+        ax.grid(alpha=0.2); ax.legend(loc="upper left")
+        fig.tight_layout(); pdf.savefig(fig, bbox_inches="tight"); plt.close(fig)
+
+        if not summary.empty:
+            metrics = ["CommonMeanRankIC", "CommonRankICIR", "CommonQ5MinusQ1Sharpe", "CommonQuintileMonotonicity"]
+            fig, axes = plt.subplots(2, 2, figsize=(13, 9))
+            for ax, metric in zip(axes.ravel(), metrics):
+                frame = summary.sort_values(metric)
+                ax.barh(frame["Scenario"], frame[metric])
+                ax.set_title(metric); ax.grid(axis="x", alpha=0.2)
+            fig.suptitle("S07 OLS / Ridge 比較（同一線形基底・共通OOS）", fontsize=15, fontweight="bold")
+            fig.tight_layout(rect=[0, 0, 1, 0.96]); pdf.savefig(fig, bbox_inches="tight"); plt.close(fig)
+
+
+def write_s07_estimator_comparison_excel(
+    data: pd.DataFrame,
+    variants: dict[str, dict[str, pd.DataFrame | pd.Series]],
+    output_path: Path,
+    config: dict[str, Any],
+) -> None:
+    if not variants:
+        return
+    from .evaluation import evaluate_scenarios, rank_ic_delta_table
+    results = _s07_variant_results(data, variants, config)
+    summary, full_q, full_ic, common_q, common_ic = evaluate_scenarios(results, config)
+    c = config["columns"]
+    pred = data[[c["date"], c["isin"], c["country"], c["sector"], "NextMonthReturn"]].copy().rename(
+        columns={c["date"]: "Date", c["isin"]: "ISIN", c["country"]: "Country", c["sector"]: "Sector"}
+    )
+    coef_frames = []
+    model_frames = []
+    for name, payload in variants.items():
+        pred[name] = payload["Prediction"]
+        coef = payload.get("CoefficientHistory", pd.DataFrame())
+        if isinstance(coef, pd.DataFrame) and not coef.empty:
+            tmp = coef.copy(); tmp.insert(0, "Variant", name); coef_frames.append(tmp)
+        hist = payload.get("ModelHistory", pd.DataFrame())
+        if isinstance(hist, pd.DataFrame) and not hist.empty:
+            tmp = hist.copy(); tmp.insert(0, "Variant", name); model_frames.append(tmp)
+    coefficients = pd.concat(coef_frames, ignore_index=True) if coef_frames else pd.DataFrame()
+    models = pd.concat(model_frames, ignore_index=True) if model_frames else pd.DataFrame()
+    benchmark = "S07_OLS_Linear" if "S07_OLS_Linear" in variants else next(iter(variants))
+
+    with pd.ExcelWriter(output_path, engine="xlsxwriter") as writer:
+        pd.DataFrame({
+            "Sheet": ["Summary", "Common_RankIC_Delta", "Common_Quintiles", "Common_RankIC", "Full_Quintiles", "Full_RankIC", "Predictions", "Coefficients", "Model_History"],
+            "Content": ["OLS/Ridgeの共通OOS比較", "基準S07との差", "共通OOS分位履歴", "共通OOS RankIC", "各利用可能期間の分位履歴", "各利用可能期間のRankIC", "銘柄別予測", "係数履歴", "推定履歴"],
+        }).to_excel(writer, sheet_name="README", index=False)
+        _write_dataframe(writer, summary, "Summary")
+        _write_dataframe(writer, rank_ic_delta_table(common_ic, benchmark), "Common_RankIC_Delta")
+        _write_dataframe(writer, common_q, "Common_Quintiles")
+        _write_dataframe(writer, common_ic, "Common_RankIC")
+        _write_dataframe(writer, full_q, "Full_Quintiles")
+        _write_dataframe(writer, full_ic, "Full_RankIC")
+        _write_dataframe(writer, pred, "Predictions")
+        _write_dataframe(writer, coefficients, "Coefficients")
+        _write_dataframe(writer, models, "Model_History")
+        for ws in writer.sheets.values():
+            ws.freeze_panes(1, 0); ws.set_column(0, max(0, ws.dim_colmax), 18)

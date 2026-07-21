@@ -20,13 +20,15 @@ from .reporting import (
     write_quintile_pdf,
     write_scenario_comparison_pdf,
     write_scenario_excels,
+    write_s07_estimator_comparison_pdf,
+    write_s07_estimator_comparison_excel,
     write_sector_factor_interactions_pdf,
 )
 from .scenarios import build_scenarios
 
 
 def run_pipeline(config_path: str | Path) -> dict[str, Any]:
-    """3層モデルとS00-S07の比較を実行する。"""
+    """3層モデルとS00-S07（OLS/Ridge分岐）の比較を実行する。"""
     config_path = Path(config_path).resolve()
     config, root = load_config(config_path)
     data, sheets, _ = read_inputs(config, root)
@@ -54,13 +56,13 @@ def run_pipeline(config_path: str | Path) -> dict[str, Any]:
         parsed["sector_group_map"],
         parsed["sector_factor_interaction"],
     )
-    summary, quintiles, rank_ic = evaluate_scenarios(scenarios, config)
+    summary, quintiles, rank_ic, common_quintiles, common_rank_ic = evaluate_scenarios(scenarios, config)
     pdf_cfg = config["outputs"].get("pdf", {})
 
     if pdf_cfg.get("quintile_cumulative_returns", True):
         write_quintile_pdf(quintiles, output_dirs["root"] / "quintile_cumulative_returns.pdf", config)
     if pdf_cfg.get("scenario_comparison", True):
-        write_scenario_comparison_pdf(summary, quintiles, rank_ic, output_dirs["root"] / "stock_scoring_scenario_comparison.pdf", config)
+        write_scenario_comparison_pdf(summary, quintiles, rank_ic, common_quintiles, common_rank_ic, output_dirs["root"] / "stock_scoring_scenario_comparison.pdf", config)
     if pdf_cfg.get("layer3_scope_comparison", True):
         write_layer3_scope_comparison_pdf(data, layer3, output_dirs["root"] / "layer3_scope_comparison.pdf", config)
     if pdf_cfg.get("layer3_country_diagnostics", True):
@@ -69,6 +71,8 @@ def run_pipeline(config_path: str | Path) -> dict[str, Any]:
         write_coefficient_stability_pdf(layer3, output_dirs["root"] / "coefficient_stability.pdf", config)
     if pdf_cfg.get("sector_factor_interactions", True):
         write_sector_factor_interactions_pdf(layer3, output_dirs["root"] / "sector_factor_interactions.pdf", config)
+    if pdf_cfg.get("s07_estimator_comparison", True):
+        write_s07_estimator_comparison_pdf(data, diagnostics.get("S07Variants", {}), output_dirs["root"] / "s07_ols_ridge_comparison.pdf", config)
 
     if config["outputs"].get("analysis_summary_xlsx", True):
         write_analysis_summary(
@@ -76,12 +80,16 @@ def run_pipeline(config_path: str | Path) -> dict[str, Any]:
             summary,
             quintiles,
             rank_ic,
+            common_quintiles,
+            common_rank_ic,
             diagnostics.get("Layer1Selection", pd.DataFrame()),
             diagnostics.get("Layer2Weights", pd.DataFrame()),
             lineage,
         )
     if config["outputs"].get("layer3_diagnostics_xlsx", True):
         write_layer3_diagnostics_excel(output_dirs["root"] / "layer3_diagnostics.xlsx", data, layer3, config)
+    if config["outputs"].get("s07_estimator_comparison_xlsx", True):
+        write_s07_estimator_comparison_excel(data, diagnostics.get("S07Variants", {}), output_dirs["root"] / "s07_ols_ridge_comparison.xlsx", config)
     write_scenario_excels(scenarios, output_dirs["patterns"], config)
     write_layer3_history_files(output_dirs["history"], layer3, diagnostics, config)
 
@@ -89,6 +97,8 @@ def run_pipeline(config_path: str | Path) -> dict[str, Any]:
         "root": root,
         "output_dirs": output_dirs,
         "summary": summary,
+        "common_oos_start": summary["CommonStartDate"].dropna().min() if not summary.empty else pd.NaT,
+        "common_oos_end": summary["CommonEndDate"].dropna().max() if not summary.empty else pd.NaT,
         "scenario_count": len(scenarios),
         "layer3_scopes": list(layer3),
         "primary_scope": config["layer3"].get("primary_scope"),

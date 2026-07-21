@@ -1,4 +1,4 @@
-factor_master.xlsx 作成指示書（Copilot向け・v0.12.1）
+factor_master.xlsx 作成指示書（Copilot向け・v0.12.2）
 
 #1. 目的
 
@@ -420,3 +420,18 @@ print("factor_master.xlsx validation passed.")
 以下をCopilotへそのまま渡してください。
 
 > この指示書に完全準拠するPythonスクリプトを作成し、factor_master.xlsxを生成してください。README以外の全シートは必ず1行目をカラムヘッダー、2行目以降を実データとしてください。タイトル行・説明行・空白行をデータシート上部へ追加してはいけません。全シート名、列名、列順、初期データ、選択肢、入力規則、書式を指示書どおりに作成し、最後に検証コードを実行してください。
+
+v0.12.2 Layer3_Settings追加行
+Layer3_Settingsは1行目をSetting, Valueとし、2行目以降に以下を作成すること。
+Estimation_Scope,country_independent
+Training_Mode,rolling_pooled
+Interaction_Mode,selected_interactions
+Include_Nonlinear_Basis,1
+Include_Sector_Dummy,1
+Include_Sector_Factor_Interaction,1
+Lookback_Periods,36
+Minimum_Train_Periods,12
+Ridge_Validation_Periods,6
+S07_OLS_Linear_Enabled,1
+S07_Ridge_Linear_Enabled,1
+S07_Ridge_Flexible_Enabled,0

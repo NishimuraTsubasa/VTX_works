@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from copy import deepcopy
 from typing import Any
 
 import numpy as np
@@ -63,6 +64,7 @@ def _stock_frame(
     if extra_columns:
         for name, series in extra_columns.items():
             out[name] = series
+    out["RankScope"] = rank_scope
     out["TotalScore"] = _score_rank(data, prediction, config, rank_scope)
     qn = int(config["evaluation"].get("quintiles", 5))
     group_cols = ["Date", "Country"] if rank_scope == "country" else ["Date"]
@@ -226,18 +228,46 @@ def build_scenarios(
 
     region = apply_country_region_map(data, config["columns"]["country"], country_region_map)
     sector_group = apply_sector_group_map(data, config["columns"]["sector"], sector_group_map)
+
+    # 第3層の推定範囲比較は、既定のRidge設定で作成する。
     layer3 = run_layer3_scopes(data, layer2_scores, region, sector_group, interaction_map, config)
     primary_scope = str(config["layer3"].get("primary_scope", "country_independent"))
     if primary_scope not in layer3:
         primary_scope = next(iter(layer3))
-    primary_pred = layer3[primary_scope]["Prediction"]
-    if enabled.get("S07_Layer3_Final_Model", True):
-        rank_scope = str(config["layer3"].get("final_score_rank_scope", "country"))
-        results["S07_Layer3_Final_Model"] = _finalize(
-            "S07_Layer3_Final_Model", data, primary_pred, config,
+
+    # S07はOLS/Ridgeを同じ線形基底・同じOOS開始条件で並列比較する。
+    s07_variant_outputs: dict[str, dict[str, pd.DataFrame | pd.Series]] = {}
+    variant_specs = config["layer3"].get("s07_variants", {})
+    rank_scope = str(config["layer3"].get("final_score_rank_scope", "country"))
+    for variant_name, spec in variant_specs.items():
+        if not bool(spec.get("enabled", True)) or not enabled.get(variant_name, True):
+            continue
+        variant_config = deepcopy(config)
+        variant_config["layer3"]["estimator"] = str(spec.get("estimator", "ridge"))
+        # S07推定方式比較ではprimary_scopeのみ実行し、地域比較の重複計算を避ける。
+        variant_config["layer3"]["comparison_scopes"] = [primary_scope]
+        basis = list(spec.get("nonlinear_basis", ["linear"]))
+        variant_config["layer3"]["nonlinear_basis"] = basis
+        variant_config["layer3"]["include_nonlinear_basis"] = basis != ["linear"]
+        scoped = run_layer3_scopes(data, layer2_scores, region, sector_group, interaction_map, variant_config)
+        variant_scope = primary_scope if primary_scope in scoped else next(iter(scoped))
+        payload = scoped[variant_scope]
+        payload = dict(payload)
+        payload["VariantName"] = pd.Series(variant_name, index=data.index)
+        payload["Estimator"] = pd.Series(str(spec.get("estimator", "ridge")), index=data.index)
+        payload["Basis"] = pd.Series(",".join(basis), index=data.index)
+        s07_variant_outputs[variant_name] = payload
+        results[variant_name] = _finalize(
+            variant_name, data, payload["Prediction"], config,
             subscores=layer1_subscores, factor_scores=layer2_scores,
             rank_scope=rank_scope, weights=layer2_weights, selection=layer1_selection,
-            extra={"Layer3Scope": pd.Series(primary_scope, index=data.index), "Region": region, "SectorGroup": sector_group},
+            extra={
+                "Layer3Scope": pd.Series(variant_scope, index=data.index),
+                "Layer3Estimator": pd.Series(str(spec.get("estimator", "ridge")), index=data.index),
+                "Layer3Basis": pd.Series(",".join(basis), index=data.index),
+                "Region": region,
+                "SectorGroup": sector_group,
+            },
         )
 
     diagnostics = {
@@ -246,5 +276,6 @@ def build_scenarios(
         "Layer2FactorScores": layer2_scores,
         "Region": pd.DataFrame({"Region": region}),
         "SectorGroup": pd.DataFrame({"SectorGroup": sector_group}),
+        "S07Variants": s07_variant_outputs,
     }
     return results, layer3, diagnostics

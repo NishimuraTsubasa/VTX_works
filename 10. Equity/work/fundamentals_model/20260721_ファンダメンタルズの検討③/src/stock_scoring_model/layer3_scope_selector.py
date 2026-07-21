@@ -35,11 +35,11 @@ def run_layer3_scopes(
             scope,
         )
         if scope == "country_independent":
-            result = fit_country_models(data, design.X, design.penalty_multipliers, config)
+            result = fit_country_models(data, design.X, design.penalty_multipliers, config, eligible_rows=design.eligible_rows)
         elif scope == "regional_pooling":
-            result = fit_regional_models(data, design.X, design.penalty_multipliers, region, config)
+            result = fit_regional_models(data, design.X, design.penalty_multipliers, region, config, eligible_rows=design.eligible_rows)
         elif scope == "hierarchical_partial_pooling":
-            result = fit_partial_pooling_models(data, design.X, design.penalty_multipliers, region, config)
+            result = fit_partial_pooling_models(data, design.X, design.penalty_multipliers, region, config, eligible_rows=design.eligible_rows)
         else:
             raise ValueError(f"Unsupported layer3 scope: {scope}")
         outputs[scope] = {
@@ -47,5 +47,6 @@ def run_layer3_scopes(
             "CoefficientHistory": result.coefficient_history,
             "ModelHistory": result.model_history,
             "FeatureTypes": design.feature_types,
+            "EligibleRows": design.eligible_rows,
         }
     return outputs

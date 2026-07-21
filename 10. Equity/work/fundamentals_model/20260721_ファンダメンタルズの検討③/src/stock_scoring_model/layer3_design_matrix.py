@@ -20,6 +20,7 @@ class Layer3Design:
     X: pd.DataFrame
     penalty_multipliers: np.ndarray
     feature_types: pd.DataFrame
+    eligible_rows: pd.Series
 
 
 def build_layer3_design(
@@ -35,6 +36,8 @@ def build_layer3_design(
     basis_types = cfg.get("nonlinear_basis", ["linear", "piecewise", "quadratic"])
     if not cfg.get("include_nonlinear_basis", True):
         basis_types = ["linear"]
+    minimum_coverage = float(cfg.get("minimum_factor_score_coverage", 0.50))
+    eligible_rows = factor_scores.notna().mean(axis=1).ge(minimum_coverage)
     basis = basis_frame(factor_scores, basis_types, knot=float(cfg.get("piecewise_knot", 0.0)))
     frames = [basis]
     type_rows = [{"Feature": c, "FeatureType": "factor_basis"} for c in basis.columns]
@@ -85,4 +88,5 @@ def build_layer3_design(
         X=base,
         penalty_multipliers=penalties.to_numpy(float),
         feature_types=pd.DataFrame(type_rows).drop_duplicates("Feature"),
+        eligible_rows=eligible_rows.reindex(base.index).fillna(False),
     )

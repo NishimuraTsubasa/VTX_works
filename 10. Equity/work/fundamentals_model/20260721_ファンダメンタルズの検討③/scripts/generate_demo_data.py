@@ -9,8 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "data" / "input"
 
 
-def generate(seed: int = 42, n_stocks: int = 100, n_months: int = 30) -> None:
-    """v0.12動作確認用の合成factors_and_returns.xlsxを再生成する。"""
+def generate(seed: int = 42, n_stocks: int = 100, n_months: int = 48) -> None:
+    """v0.12.2動作確認用の合成factors_and_returns.xlsxを再生成する。"""
     rng = np.random.default_rng(seed)
     countries = ["US", "UK", "Germany", "Japan", "Canada"]
     sectors = ["Financials", "Industrials", "Consumer", "Healthcare", "Technology"]
@@ -67,7 +67,7 @@ def generate(seed: int = 42, n_stocks: int = 100, n_months: int = 30) -> None:
         pd.DataFrame({
             "Item": ["Purpose", "Grain", "Return", "Missing"],
             "Description": [
-                "v0.12動作確認用の合成データ。実データへ置換してください。",
+                "v0.12.2動作確認用の合成データ。実データへ置換してください。",
                 "1行 = date x ISIN",
                 "stock_returnは当該月リターン。Configで翌月へシフト。",
                 "FA欠損はNaN。0埋めしない。",

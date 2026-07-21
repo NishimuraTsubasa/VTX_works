@@ -8,6 +8,7 @@ data/input/factors_and_returns.xlsx
 data/templates/factor_master_template.xlsx
 data/templates/factors_and_returns_template.xlsx
 docs/binscatter_time_averaged_spec.md
+docs/common_oos_and_s07_estimators.md
 docs/config_guide.md
 docs/copilot_prompt_create_factor_master.txt
 docs/factor_master_excel_creation_instructions.txt
@@ -35,6 +36,8 @@ outputs/layer3_country_diagnostics.pdf
 outputs/layer3_diagnostics.xlsx
 outputs/layer3_scope_comparison.pdf
 outputs/quintile_cumulative_returns.pdf
+outputs/s07_ols_ridge_comparison.pdf
+outputs/s07_ols_ridge_comparison.xlsx
 outputs/sector_factor_interactions.pdf
 outputs/stock_score_patterns/S00_Current_Direct_EW.xlsx
 outputs/stock_score_patterns/S01_Missing_Adjusted_EW.xlsx
@@ -43,7 +46,8 @@ outputs/stock_score_patterns/S03_Neutralized_Direct_EW.xlsx
 outputs/stock_score_patterns/S04_Hierarchical_Equal_Weight.xlsx
 outputs/stock_score_patterns/S05_Correlation_Adjusted_IC.xlsx
 outputs/stock_score_patterns/S06_Selected_Factor_Models.xlsx
-outputs/stock_score_patterns/S07_Layer3_Final_Model.xlsx
+outputs/stock_score_patterns/S07_OLS_Linear.xlsx
+outputs/stock_score_patterns/S07_Ridge_Linear.xlsx
 outputs/stock_scoring_scenario_comparison.pdf
 pyproject.toml
 requirements.txt
@@ -85,10 +89,12 @@ src/stock_scoring_model/scenario_registry.py
 src/stock_scoring_model/scenarios.py
 src/stock_scoring_model/sector_grouping.py
 tests/test_binscatter.py
+tests/test_common_oos.py
 tests/test_feature_engineering.py
 tests/test_layer1_single_factor.py
 tests/test_layer2_aggregation.py
 tests/test_layer3_design_matrix.py
+tests/test_layer3_estimators.py
 tests/test_layer3_partial_pooling.py
 tests/test_no_lookahead.py
 tests/test_outputs.py

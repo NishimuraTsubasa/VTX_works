@@ -15,7 +15,8 @@ def fit_regional_models(
     region: pd.Series,
     config: dict[str, Any],
     target_col: str = "NextMonthReturn",
+    eligible_rows: pd.Series | None = None,
 ) -> Layer3Prediction:
     if config["layer3"].get("training_mode", "rolling_pooled") == "cross_sectional_coefficient_average":
-        return rolling_cross_sectional_coefficient_average(data, X, penalties, config, region, "regional_pooling", target_col)
-    return rolling_pooled_prediction(data, X, penalties, config, region, "regional_pooling", target_col)
+        return rolling_cross_sectional_coefficient_average(data, X, penalties, config, region, "regional_pooling", target_col, eligible_rows)
+    return rolling_pooled_prediction(data, X, penalties, config, region, "regional_pooling", target_col, eligible_rows)

@@ -124,3 +124,11 @@ outputs/
 ```
 
 サンプル出力は同梱の合成データで生成したものであり、実データの投資結果を示すものではありません。
+
+## v0.12.1 factor_master.xlsx 標準化
+
+- `README` 以外の全構造化シートは、1行目がカラムヘッダーです。
+- 2行目以降は実データのみです。
+- データシート上部へタイトル・説明・空白行を追加しないでください。
+- 別PCでCopilotに再作成させる場合は、`docs/factor_master_excel_creation_instructions_for_copilot.txt` を使用してください。
+- Copilotへの短い依頼文は `docs/copilot_prompt_create_factor_master.txt` です。

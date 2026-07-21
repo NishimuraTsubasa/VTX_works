@@ -1,4 +1,5 @@
 .vscode/launch.json
+FILE_LIST.txt
 README.md
 REPLACE_AND_RUN.txt
 config/model_config.py
@@ -8,7 +9,10 @@ data/templates/factor_master_template.xlsx
 data/templates/factors_and_returns_template.xlsx
 docs/binscatter_time_averaged_spec.md
 docs/config_guide.md
+docs/copilot_prompt_create_factor_master.txt
 docs/factor_master_excel_creation_instructions.txt
+docs/factor_master_excel_creation_instructions_for_copilot.md
+docs/factor_master_excel_creation_instructions_for_copilot.txt
 docs/factor_master_reference.md
 docs/file_inventory.md
 docs/file_inventory.txt

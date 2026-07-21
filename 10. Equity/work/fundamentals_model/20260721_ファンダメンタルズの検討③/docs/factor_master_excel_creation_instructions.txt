@@ -1,0 +1,57 @@
+factor_master.xlsx v0.12 再作成指示書
+
+目的:
+別PCで同じfactor_master.xlsxを再作成するための指示書です。
+
+作成するシート順:
+1 README
+2 Column_Dictionary
+3 Option_Dictionary
+4 Factor_Master
+5 Group_Settings
+6 Feature_Engineering_Control
+7 Derived_Feature_Rules
+8 Factor_Overrides
+9 Group_Overrides
+10 Country_Region_Map
+11 Sector_Group_Map
+12 Sector_Factor_Interaction
+13 Layer3_Settings
+
+Country_Region_Map:
+ヘッダー行: Country, Region, Enabled
+選択式: Enabled=0/1
+Countryはfactors_and_returns.xlsxのcountryと完全一致。
+Regionは固定的な地域名。例: North_America, Europe, Developed_Asia。
+
+Sector_Group_Map:
+ヘッダー行: Sector, Sector_Group, Enabled
+Sectorは入力sectorと完全一致。
+未登録sectorはコード上Otherになる。
+
+Sector_Factor_Interaction:
+ヘッダー行: Sector_Group, Factor_Group, Enabled
+Interaction_Mode=selected_interactionsのとき使用。
+例: Financials, Value, 1
+
+Layer3_Settings:
+ヘッダー行: Setting, Value
+行:
+Estimation_Scope = country_independent | regional_pooling | hierarchical_partial_pooling
+Training_Mode = rolling_pooled | cross_sectional_coefficient_average
+Interaction_Mode = selected_interactions | all_interactions
+Include_Nonlinear_Basis = 0 | 1
+Include_Sector_Dummy = 0 | 1
+Include_Sector_Factor_Interaction = 0 | 1
+
+書式:
+- 1行目タイトル: 淡い青、太字
+- 4行目ヘッダー: 濃い青、白太字
+- 5行目以降の入力セル: 淡黄色、青文字
+- 4行固定
+- 選択式項目にはExcel入力規則を設定
+
+重要:
+- Factor_Name_JP / Factor_Name_ENは作成しない。
+- Factor_Codeを一意キーとする。
+- 第1層SubScoreはコード側でWalk-forward OOF生成する。

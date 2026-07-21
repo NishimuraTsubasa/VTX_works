@@ -1,0 +1,35 @@
+個別銘柄スコアリングモデル v0.12 全差し替え・実行手順
+====================================================
+
+1. 旧プロジェクトは念のため別名でバックアップしてください。
+2. stock_scoring_model_v12 フォルダの内容を、プロジェクトルートごと差し替えてください。
+3. 実データへ置換するファイルは以下の2つです。
+   - data/input/factors_and_returns.xlsx
+   - data/input/factor_master.xlsx
+4. PowerShellでプロジェクトルートへ移動します。
+5. 初回のみ以下を実行します。
+   py -m pip install -e .
+6. 入力検証を実行します。
+   py scripts\validate_inputs.py --config config\model_config.py
+7. 全分析を実行します。
+   py scripts\run_pipeline.py --config config\model_config.py
+8. Binscatterのみ再作成する場合は以下を実行します。
+   py scripts\run_binscatter.py --config config\model_config.py
+9. VS Codeデバッグは .vscode/launch.json の「Debug scoring pipeline」から開始します。
+
+主な設定箇所
+------------
+- config/model_config.py
+- data/input/factor_master.xlsx
+
+第3層の推定範囲
+----------------
+- country_independent
+- regional_pooling
+- hierarchical_partial_pooling
+
+注意
+----
+- 同梱の入力・出力は合成データによる動作確認用です。
+- pipeline.pyを直接実行せず、scripts/run_pipeline.pyから実行してください。
+- 実データの列定義は docs/input_generation_readme.md を確認してください。

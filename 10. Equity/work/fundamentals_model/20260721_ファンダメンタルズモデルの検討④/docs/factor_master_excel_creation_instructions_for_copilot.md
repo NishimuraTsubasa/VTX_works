@@ -1,0 +1,443 @@
+# factor_master.xlsx 作成指示書（Copilot向け・v0.12.6）
+
+## 1. 目的
+
+個別銘柄スコアリングモデルで使用する `factor_master.xlsx` を、別PC上でCopilotに作成させるための完全な指示書です。
+
+最重要ルールは次のとおりです。
+
+1. **README以外の全シートは、必ず1行目をカラムヘッダーにする。**
+2. **2行目以降には実データだけを置く。**
+3. データシートの先頭に、タイトル・説明文・空白行を追加しない。
+4. 列名・列順・シート名を勝手に変更しない。
+5. 行を追加する場合は、既存データの末尾へ追加する。
+6. `Factor_Name_JP`、`Factor_Name_EN` 等の名称列は作成しない。
+7. 文字列の選択肢は、本書に記載した半角英字を完全一致で使用する。
+
+## 2. Copilotへ依頼する作業
+
+Pythonの `openpyxl` を使用して、以下を満たすExcelファイルを作成してください。
+
+- 出力ファイル名: `factor_master.xlsx`
+- Excel形式: `.xlsx`
+- シート順:
+  1. README
+  2. Column_Dictionary
+  3. Option_Dictionary
+  4. Factor_Master
+  5. Group_Settings
+  6. Feature_Engineering_Control
+  7. Derived_Feature_Rules
+  8. Factor_Overrides
+  9. Group_Overrides
+  10. Country_Region_Map
+  11. Sector_Group_Map
+  12. Sector_Factor_Interaction
+  13. Layer3_Settings
+
+## 3. Excel構造の絶対条件
+
+### 3.1 README
+
+READMEだけは説明用シートなので自由形式で構いません。ただし、少なくとも次の注意書きを入れてください。
+
+- README以外の全シートは1行目がヘッダー
+- 2行目以降はデータのみ
+- データシート上部に説明行・空白行を追加禁止
+- 列名・列順・シート名を変更禁止
+- Factor_Codeは `factors_and_returns.xlsx` のFA列名と完全一致
+- 選択肢はOption_Dictionaryと完全一致
+- ファクター欠損値を0で埋めない
+
+### 3.2 README以外の全シート
+
+- 1行目: カラムヘッダー
+- 2行目以降: 実データ
+- 1行目を固定表示
+- 1行目にオートフィルターを設定
+- 先頭にタイトル、注意書き、空白行、結合セルを入れない
+- 列名の前後に空白を入れない
+- ユーザー入力セルは淡黄色、文字色は青
+- ヘッダーは濃紺背景、白文字、太字
+- 選択式セルにはデータ入力規則のプルダウンを付ける
+
+## 4. 入力規則
+
+- 0/1項目: `0,1`
+- Direction: `-1,1`
+- Aggregation_Method: `equal_weight,manual,ic_adjusted,pca`
+- Scope_Type: `group,factor`
+- Generation_Mode: `all,selected`
+- Feature_Type: `difference,rolling_mean_deviation,rolling_mean_ratio,expanding_mean_deviation`
+- Direction_Mode: `inherit,reverse,custom`
+- Transform: `default,none,log,log1p,inverse,signed_log`
+- Winsorize: `default,none,1_99,2.5_97.5,mad_3`
+- Fallback_Method: `equal_weight,manual`
+- Estimation_Scope: `country_independent,regional_pooling,hierarchical_partial_pooling`
+- Training_Mode: `rolling_pooled,cross_sectional_coefficient_average`
+- Interaction_Mode: `selected_interactions,all_interactions`
+
+## 5. 書式
+
+- フォント: Calibri または Aptos
+- ヘッダー背景: `#1F4E78`
+- ヘッダー文字: 白、太字
+- 入力セル背景: `#FFF2CC`
+- 入力セル文字: `#0070C0`
+- ヘッダー行高: 28
+- データ行高: 20
+- 全セルに薄い罫線
+- 長文列は折り返し
+- `Base_Weight`: 小数4桁
+- `Min_Coverage`, `Max_Weight`, `Weight_Smoothing`: 小数またはパーセントとして扱える形式
+- ウィンドウ枠固定: 1行目
+- オートフィルター: 1行目から最終列
+
+## 6. 完成後の検証
+
+Copilotが生成したコードには、最後に以下の検証を入れてください。
+
+```python
+from openpyxl import load_workbook
+
+wb = load_workbook("factor_master.xlsx", data_only=False)
+
+expected_sheets = [
+    "README",
+    "Column_Dictionary",
+    "Option_Dictionary",
+    "Factor_Master",
+    "Group_Settings",
+    "Feature_Engineering_Control",
+    "Derived_Feature_Rules",
+    "Factor_Overrides",
+    "Group_Overrides",
+    "Country_Region_Map",
+    "Sector_Group_Map",
+    "Sector_Factor_Interaction",
+    "Layer3_Settings",
+]
+assert wb.sheetnames == expected_sheets
+
+expected_headers = {
+    "Factor_Master": ["Factor_Code", "Factor_Group", "Enabled", "Direction", "Base_Weight"],
+    "Group_Settings": ["Factor_Group", "Enabled", "Aggregation_Method"],
+    "Feature_Engineering_Control": ["Scope_Type", "Scope_Value", "Enabled", "Generation_Mode", "Include_Raw"],
+    "Derived_Feature_Rules": [
+        "Rule_ID", "Scope_Type", "Scope_Value", "Feature_Type",
+        "Difference_Periods", "Window_Periods", "Min_Periods",
+        "Source_Lag_Periods", "Exclude_Source_From_Baseline",
+        "Enabled", "Selected", "Direction_Mode", "Custom_Direction"
+    ],
+    "Factor_Overrides": [
+        "Factor_Code", "Transform", "Winsorize",
+        "Neutralize", "Rank_Normalize", "Min_Coverage"
+    ],
+    "Group_Overrides": [
+        "Factor_Group", "Lookback_Periods", "Min_Periods",
+        "Max_Weight", "Weight_Smoothing",
+        "Fallback_Method", "PCA_Anchor_Factor"
+    ],
+    "Country_Region_Map": ["Country", "Region", "Enabled"],
+    "Sector_Group_Map": ["Sector", "Sector_Group", "Enabled"],
+    "Sector_Factor_Interaction": ["Sector_Group", "Factor_Group", "Enabled"],
+    "Layer3_Settings": ["Setting", "Value"],
+}
+
+for sheet_name, headers in expected_headers.items():
+    ws = wb[sheet_name]
+    actual = [ws.cell(row=1, column=i + 1).value for i in range(len(headers))]
+    assert actual == headers, (sheet_name, actual, headers)
+    assert ws.freeze_panes == "A2"
+
+assert wb["Factor_Master"]["A2"].value == "FA0101"
+assert wb["Factor_Master"]["A1"].value == "Factor_Code"
+assert wb["Factor_Master"]["A4"].value != "Factor_Code"
+
+print("factor_master.xlsx validation passed.")
+```
+
+## 7. シート仕様
+
+## Column_Dictionary
+
+| Sheet | Column | Required | Data_Type | Allowed_Values | Blank_Behavior | Detailed_Description | Example | Common_Error |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Factor_Master | Factor_Code | Yes | Text | FAコード（例 FA0101） | 不可 | 入力データfactors_and_returns.xlsxのFA列名。モデル内の一意キー。重複不可。 | FA0101 | 入力データと大文字小文字・空白が一致しない |
+| Factor_Master | Factor_Group | Yes | Text | Group_Settingsに存在するグループ | 不可 | ファクターをValue、Momentum等のSubScoreへ分類する。 | Value | Group_Settingsに未登録の名称を記載 |
+| Factor_Master | Enabled | Yes | Integer | 0 / 1 | 不可 | 1なら使用、0なら入力列を残したまま分析対象外。 | 1 | TRUE/FALSEや全角数字を入力 |
+| Factor_Master | Direction | Yes | Integer | -1 / 1 | 不可 | 前処理後のFAを『高いほど望ましい』方向へ統一。1はそのまま、-1は符号反転。 | -1 | 経済的な向きと逆、または0を入力 |
+| Factor_Master | Base_Weight | Yes | Decimal | 0以上 | 不可 | Aggregation_Method=manualのときの相対ウェイト。その他の方式では原則未使用。 | 1.0 | manualで全FAの合計が0、負値を設定 |
+| Group_Settings | Factor_Group | Yes | Text | Factor_Masterで使用するグループ | 不可 | グループの一意キー。Factor_MasterのFactor_Groupと完全一致。 | Value | 表記揺れ（Low Risk / Low_Risk） |
+| Group_Settings | Enabled | Yes | Integer | 0 / 1 | 不可 | 1なら当該グループを最終スコア作成に使用。0ならグループ全体を除外。 | 1 | FAは有効だがグループを0にして意図せず除外 |
+| Group_Settings | Aggregation_Method | Yes | Text | equal_weight / manual / ic_adjusted / pca | 不可 | グループ内FAをどの方法でSubScoreへ統合するか指定。 | equal_weight | 選択肢以外の略称を入力 |
+| Feature_Engineering_Control | Scope_Type | Yes | Text | group / factor | 不可 | 派生特徴量設定をグループ全体に適用するか、個別FAへ適用するか指定。 | group | Group/Factorの大文字表記 |
+| Feature_Engineering_Control | Scope_Value | Yes | Text | Factor_GroupまたはFactor_Code | 不可 | Scope_Type=groupならグループ名、factorならFAコード。 | Value | Scope_Typeと値の種類が不一致 |
+| Feature_Engineering_Control | Enabled | Yes | Integer | 0 / 1 | 不可 | 1なら対象から派生特徴量を生成、0なら生成しない。 | 1 | ルールは有効でもControlが0 |
+| Feature_Engineering_Control | Generation_Mode | Yes | Text | all / selected | 不可 | allは対象ルールを全て使用。selectedはSelected=1だけ使用。 | selected | 特徴量数が増えるためallを無意識に使用 |
+| Feature_Engineering_Control | Include_Raw | Yes | Integer | 0 / 1 | 不可 | 1なら元FAと派生FAを併用。0なら派生FAのみ使用。 | 1 | 初期検証で0にして水準情報を失う |
+| Derived_Feature_Rules | Rule_ID | Yes | Text | 一意の任意コード | 不可 | 派生特徴量ルールの識別子。重複不可。 | VAL_MADEV_12 | Rule_ID重複 |
+| Derived_Feature_Rules | Scope_Type | Yes | Text | group / factor | 不可 | このルールの対象単位。 | group | 大文字・全角 |
+| Derived_Feature_Rules | Scope_Value | Yes | Text | Factor_GroupまたはFactor_Code | 不可 | このルールを適用するグループまたはFA。 | Value | 存在しない対象を指定 |
+| Derived_Feature_Rules | Feature_Type | Yes | Text | difference / rolling_mean_deviation / rolling_mean_ratio / expanding_mean_deviation | 不可 | 派生特徴量の計算方式。詳細はOption_Dictionary参照。 | rolling_mean_deviation | 省略名を使用 |
+| Derived_Feature_Rules | Difference_Periods | Conditional | Integer | 1以上 | difference以外は0または空欄 | 何期間前との差を取るか。differenceで使用。 | 1 | 0、負値 |
+| Derived_Feature_Rules | Window_Periods | Conditional | Integer | 2以上 | rolling系以外は0または空欄 | 移動平均の窓数。月次なら6=6か月。 | 12 | 頻度を考慮せず期間を設定 |
+| Derived_Feature_Rules | Min_Periods | Yes | Integer | 1以上 | 不可 | 派生値を計算する最低観測数。rolling系ではWindow以下。 | 6 | Window_Periodsより大きい |
+| Derived_Feature_Rules | Source_Lag_Periods | Yes | Integer | 0以上（推奨1） | 不可 | スコア時点tから最新元FAを何期遅らせるか。派生値はこの時点以前だけで作る。 | 1 | 時点ずれを理解せず0へ変更 |
+| Derived_Feature_Rules | Exclude_Source_From_Baseline | Yes | Integer | 0 / 1 | 不可 | 1なら移動平均の基準計算から比較対象となる最新元FAを除く。 | 1 | 乖離計算で最新値を平均へ含める |
+| Derived_Feature_Rules | Enabled | Yes | Integer | 0 / 1 | 不可 | ルール自体の有効・無効。 | 1 | ControlとRuleの両方が必要 |
+| Derived_Feature_Rules | Selected | Yes | Integer | 0 / 1 | 不可 | Generation_Mode=selectedの場合のみ、1のルールを使用。allでは原則無視。 | 1 | selectedモードで0のまま |
+| Derived_Feature_Rules | Direction_Mode | Yes | Text | inherit / reverse / custom | 不可 | 派生FAの方向を元FAからどう決めるか。 | inherit | customなのにCustom_Direction未設定 |
+| Derived_Feature_Rules | Custom_Direction | Conditional | Integer | -1 / 1 | custom以外は無視 | Direction_Mode=customの場合の方向。 | 1 | 0を入力 |
+| Factor_Overrides | Factor_Code | Conditional | Text | Factor_Masterに存在するFA | 行を作らなければ共通設定 | 共通前処理と異なるFAだけ記載。 | FA0101 | 存在しないFAを指定 |
+| Factor_Overrides | Transform | No | Text | 空欄 / default / none / log / log1p / inverse / signed_log | 空欄は共通設定 | 生FAへ適用する変換。 | signed_log | 値域に合わないlogを指定 |
+| Factor_Overrides | Winsorize | No | Text | 空欄 / default / none / 1_99 / 2.5_97.5 / mad_3 | 空欄は共通設定 | FA固有の外れ値処理。 | mad_3 | データエラーをWinsorizeだけで隠す |
+| Factor_Overrides | Neutralize | No | Integer | 空欄 / 0 / 1 | 空欄は共通設定 | 1で国・セクター・サイズ中立化、0で実施しない。 | 0 | 既に中立化済みで1 |
+| Factor_Overrides | Rank_Normalize | No | Integer | 空欄 / 0 / 1 | 空欄は共通設定 | 1でクロスセクション順位正規化。 | 1 | 単位が違うFAを0のまま統合 |
+| Factor_Overrides | Min_Coverage | No | Decimal | 0超1以下 | 空欄は共通設定 | 時点ごとにFAを使用する最低カバレッジ。 | 0.6 | 60と入力（0.60ではない） |
+| Group_Overrides | Factor_Group | Conditional | Text | Group_Settingsに存在するグループ | 行を作らなければ共通設定 | 共通パラメータと異なるグループだけ記載。 | Value | 存在しないグループ |
+| Group_Overrides | Lookback_Periods | No | Integer | 1以上 | 空欄は共通設定 | IC、相関、PCA等を推定する履歴期間。 | 36 | 月次と週次の単位を混同 |
+| Group_Overrides | Min_Periods | No | Integer | 1以上かつLookback以下 | 空欄は共通設定 | 推定開始に必要な最低期間。未満ならFallback。 | 18 | Lookbackより大きい |
+| Group_Overrides | Max_Weight | No | Decimal | 0超1以下 | 空欄は共通設定 | ic_adjusted等で単一FAが占める最大ウェイト。 | 0.5 | 50と入力 |
+| Group_Overrides | Weight_Smoothing | No | Decimal | 0以上1以下 | 空欄は共通設定 | 前期ウェイトを残す比率。1に近いほど変化が小さい。 | 0.5 | 1にしてウェイトが更新されない |
+| Group_Overrides | Fallback_Method | No | Text | equal_weight / manual | 空欄は共通設定 | 履歴不足や推定失敗時に使用する統合方法。 | equal_weight | 履歴依存手法をFallbackに指定 |
+| Group_Overrides | PCA_Anchor_Factor | No | Text | 同一グループ内Factor_Code | 空欄はgroup_average基準 | PCAの符号を安定させる基準FA。 | FA2001 | 別グループのFAを指定 |
+| Country_Region_Map | Country | Yes | Text | 入力dataのcountry | 不可 | 国コード・国名。factors_and_returns.xlsxのcountryと完全一致。 | US | 入力側と表記不一致 |
+| Country_Region_Map | Region | Yes | Text | 任意の固定地域名 | 不可 | 地域プール・部分プーリングの推定単位。 | North_America | 毎月地域定義を変更 |
+| Country_Region_Map | Enabled | Yes | Integer | 0 / 1 | 不可 | 1なら対応を使用、0なら無効。 | 1 | 未登録国はUnmappedになる |
+| Sector_Group_Map | Sector | Yes | Text | 入力dataのsector | 不可 | 元セクター名。入力と完全一致。 | Financials | 表記不一致 |
+| Sector_Group_Map | Sector_Group | Yes | Text | 任意の固定グループ名 | 不可 | 第3層のダミー・交差項に使うセクターグループ。 | Financials | グループを頻繁に変更 |
+| Sector_Group_Map | Enabled | Yes | Integer | 0 / 1 | 不可 | 1なら対応を使用。未登録はOther。 | 1 | 0で意図せずOther |
+| Sector_Factor_Interaction | Sector_Group | Yes | Text | Sector_Group_Mapに存在 | 不可 | 交差項対象のセクターグループ。 | Financials | 存在しない名称 |
+| Sector_Factor_Interaction | Factor_Group | Yes | Text | Group_Settingsに存在 | 不可 | 交差項対象のFactorScore。 | Value | FAコードを記入 |
+| Sector_Factor_Interaction | Enabled | Yes | Integer | 0 / 1 | 不可 | selected_interactionsで1の組合せのみ生成。 | 1 | all_interactionsでは無視 |
+| Layer3_Settings | Setting | Yes | Text | 定義済み設定名 | 不可 | 第3層の通常変更項目。 | Estimation_Scope | 誤字 |
+| Layer3_Settings | Value | Yes | Text/Integer | 設定ごとの選択肢 | 空欄はPython Config | 設定値。Option_Dictionary参照。 | country_independent | 選択肢以外 |
+## Option_Dictionary
+
+| Field | Option_Value | Meaning | Recommended_Use | Caution | Example |
+| --- | --- | --- | --- | --- | --- |
+| Enabled / Include_Raw / Selected等 | 1 | 有効・実施する | 対象を使用するとき | TRUEやYesではなく数値1 | 1 |
+| Enabled / Include_Raw / Selected等 | 0 | 無効・実施しない | 一時停止・除外するとき | 空欄と0は異なる場合がある | 0 |
+| Direction / Custom_Direction | 1 | 値が高いほど望ましい方向 | 益回り、モメンタム等 | 経済的定義を確認 | 1 |
+| Direction / Custom_Direction | -1 | 値が低いほど望ましいため符号反転 | PER、ボラティリティ、アクルーアル等 | 反転を二重にしない | -1 |
+| Aggregation_Method | equal_weight | 有効FAを等ウェイトで平均 | 最初の基準モデル・安定性重視 | 重複情報や予測力差を考慮しない | equal_weight |
+| Aggregation_Method | manual | Base_Weightを正規化して固定統合 | 社内知見・固定ルールを反映 | ウェイト根拠と版管理が必要 | manual |
+| Aggregation_Method | ic_adjusted | 過去OOS ICとFA相関を用いてウェイト調整 | 重複抑制と予測力反映を検証 | 履歴不足・過学習・ウェイト変動に注意 | ic_adjusted |
+| Aggregation_Method | pca | FAの共通変動を主成分として抽出 | 共通成分の診断・比較モデル | リターン予測力を直接最大化しない | pca |
+| Scope_Type | group | Factor_Group全体を対象 | Value全FAに同じ派生処理 | Scope_Valueはグループ名 | group |
+| Scope_Type | factor | 個別Factor_Codeを対象 | 特定FAだけ例外設定 | Scope_ValueはFAコード | factor |
+| Generation_Mode | all | 該当するEnabled=1ルールを全て使用 | 候補数が少ない場合 | 特徴量数が急増しやすい | all |
+| Generation_Mode | selected | Enabled=1かつSelected=1のみ使用 | 通常はこちらを推奨 | Selected列の設定漏れに注意 | selected |
+| Feature_Type | difference | ラグ後の値とさらにP期前との差 | 変化量・改善/悪化を捉える | Difference_Periodsを設定 | difference |
+| Feature_Type | rolling_mean_deviation | ラグ後の値－それ以前の移動平均 | 通常水準からの絶対乖離 | WindowとMin_Periodsを設定 | rolling_mean_deviation |
+| Feature_Type | rolling_mean_ratio | ラグ後の値÷移動平均－1 | 水準差を比率で比較 | 平均が0付近・負の場合に注意 | rolling_mean_ratio |
+| Feature_Type | expanding_mean_deviation | ラグ後の値－過去全履歴平均 | 十分な履歴がある場合 | 初期期間の推定不安定に注意 | expanding_mean_deviation |
+| Direction_Mode | inherit | 元FAのDirectionを引き継ぐ | 通常の初期設定 | 変化量の意味が水準と異なる場合は検証 | inherit |
+| Direction_Mode | reverse | 元FAと逆方向 | 理論上、変化の方向が逆の場合 | 実証結果だけで頻繁に切替えない | reverse |
+| Direction_Mode | custom | Custom_Directionを使用 | 個別仮説が明確な場合 | Custom_Direction必須 | custom |
+| Transform | default | Python Configの共通変換を使用 | 通常 | 共通設定を確認 | default |
+| Transform | none | 変換なし | 既に扱いやすい指標 | 裾の厚い分布に注意 | none |
+| Transform | log | 自然対数log(x) | 正値で右裾が長い指標 | 0以下では定義不可 | log |
+| Transform | log1p | log(1+x) | 0を含む非負指標 | x<-1では定義不可 | log1p |
+| Transform | inverse | 1/x | 逆数が経済的に意味を持つ場合 | 0付近で極端化、Direction二重反転注意 | inverse |
+| Transform | signed_log | sign(x)×log(1+\|x\|) | 正負を含む裾の厚い指標 | 解釈が変わるため記録 | signed_log |
+| Winsorize | default | Python Config共通設定を使用 | 通常 | 共通閾値を確認 | default |
+| Winsorize | none | 外れ値処理なし | 既に処理済み、または比較実験 | 極端値の影響に注意 | none |
+| Winsorize | 1_99 | 1%点・99%点でクリップ | 標準的な初期設定 | 小標本scopeでは不安定 | 1_99 |
+| Winsorize | 2.5_97.5 | 2.5%点・97.5%点でクリップ | より強い外れ値抑制 | シグナルを削りすぎる可能性 | 2.5_97.5 |
+| Winsorize | mad_3 | 中央値±3MAD相当でクリップ | 裾が厚い・歪んだ分布 | MAD=0の処理を確認 | mad_3 |
+| Fallback_Method | equal_weight | 履歴不足時に等ウェイトへ戻す | 推奨 | 予測履歴を使わないため頑健 | equal_weight |
+| Fallback_Method | manual | 履歴不足時にBase_Weightを使用 | 固定仮説がある場合 | Base_Weightの設定が必要 | manual |
+| Estimation_Scope | country_independent | 国ごとに完全独立推定 | 各国50銘柄以上、説明性重視 | 交差項が多いと不安定 | country_independent |
+| Estimation_Scope | regional_pooling | 地域内の国をまとめて推定 | 安定性比較・フォールバック | 国固有の傾きを共通化 | regional_pooling |
+| Estimation_Scope | hierarchical_partial_pooling | 地域共通係数＋国別補正 | 国固有性と安定性の両立 | 計算量・説明がやや増える | hierarchical_partial_pooling |
+| Training_Mode | rolling_pooled | 過去複数月を縦に積みRidge推定 | 本番候補 | 係数一定の仮定 | rolling_pooled |
+| Training_Mode | cross_sectional_coefficient_average | 各月断面係数を平均 | 係数安定性の診断 | 交差項が多いと月次推定不安定 | cross_sectional_coefficient_average |
+| Interaction_Mode | selected_interactions | Excelで指定した交差項のみ | 本番初期候補 | 経済仮説の管理が必要 | selected_interactions |
+| Interaction_Mode | all_interactions | 全セクターグループ×FactorScore | 頑健性比較 | 特徴量数が増加 | all_interactions |
+## Factor_Master
+
+### カラム
+
+| Factor_Code | Factor_Group | Enabled | Direction | Base_Weight |
+| --- | --- | --- | --- | --- |
+
+### 初期サンプル行
+
+| Factor_Code | Factor_Group | Enabled | Direction | Base_Weight |
+| --- | --- | --- | --- | --- |
+| FA0101 | Value | 1 | 1 | 1 |
+| FA0102 | Value | 1 | 1 | 1 |
+| FA1001 | Momentum | 1 | 1 | 1 |
+| FA2001 | Quality | 1 | -1 | 1 |
+| FA3001 | Growth | 1 | 1 | 1 |
+| FA4001 | Low_Risk | 1 | 1 | 1 |
+## Group_Settings
+
+### カラム
+
+| Factor_Group | Enabled | Aggregation_Method |
+| --- | --- | --- |
+
+### 初期サンプル行
+
+| Factor_Group | Enabled | Aggregation_Method |
+| --- | --- | --- |
+| Value | 1 | ic_adjusted |
+| Momentum | 1 | equal_weight |
+| Quality | 1 | equal_weight |
+| Growth | 1 | equal_weight |
+| Low_Risk | 1 | equal_weight |
+## Feature_Engineering_Control
+
+### カラム
+
+| Scope_Type | Scope_Value | Enabled | Generation_Mode | Include_Raw |
+| --- | --- | --- | --- | --- |
+
+### 初期サンプル行
+
+| Scope_Type | Scope_Value | Enabled | Generation_Mode | Include_Raw |
+| --- | --- | --- | --- | --- |
+| group | Value | 1 | selected | 1 |
+| group | Momentum | 1 | selected | 1 |
+## Derived_Feature_Rules
+
+### カラム
+
+| Rule_ID | Scope_Type | Scope_Value | Feature_Type | Difference_Periods | Window_Periods | Min_Periods | Source_Lag_Periods | Exclude_Source_From_Baseline | Enabled | Selected | Direction_Mode | Custom_Direction |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+
+### 初期サンプル行
+
+| Rule_ID | Scope_Type | Scope_Value | Feature_Type | Difference_Periods | Window_Periods | Min_Periods | Source_Lag_Periods | Exclude_Source_From_Baseline | Enabled | Selected | Direction_Mode | Custom_Direction |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| VAL_DIFF_1 | group | Value | difference | 1 | 0 | 1 | 1 | 1 | 1 | 1 | inherit | 1 |
+| VAL_MADEV_6 | group | Value | rolling_mean_deviation | 0 | 6 | 4 | 1 | 1 | 1 | 1 | inherit | 1 |
+| MOM_DIFF_1 | group | Momentum | difference | 1 | 0 | 1 | 1 | 1 | 1 | 1 | inherit | 1 |
+## Factor_Overrides
+
+### カラム
+
+| Factor_Code | Transform | Winsorize | Neutralize | Rank_Normalize | Min_Coverage |
+| --- | --- | --- | --- | --- | --- |
+## Group_Overrides
+
+### カラム
+
+| Factor_Group | Lookback_Periods | Min_Periods | Max_Weight | Weight_Smoothing | Fallback_Method | PCA_Anchor_Factor |
+| --- | --- | --- | --- | --- | --- | --- |
+## Country_Region_Map
+
+### カラム
+
+| Country | Region | Enabled |
+| --- | --- | --- |
+
+### 初期サンプル行
+
+| Country | Region | Enabled |
+| --- | --- | --- |
+| US | North_America | 1 |
+| Canada | North_America | 1 |
+| UK | Europe | 1 |
+| Germany | Europe | 1 |
+| Japan | Developed_Asia | 1 |
+## Sector_Group_Map
+
+### カラム
+
+| Sector | Sector_Group | Enabled |
+| --- | --- | --- |
+
+### 初期サンプル行
+
+| Sector | Sector_Group | Enabled |
+| --- | --- | --- |
+| Financials | Financials | 1 |
+| Industrials | Cyclical | 1 |
+| Consumer | Consumer | 1 |
+| Healthcare | Defensive | 1 |
+| Information Technology | Growth | 1 |
+| Communication Services | Growth | 1 |
+| Utilities | Rate_Sensitive | 1 |
+| Real Estate | Rate_Sensitive | 1 |
+| Technology | Growth | 1 |
+## Sector_Factor_Interaction
+
+### カラム
+
+| Sector_Group | Factor_Group | Enabled |
+| --- | --- | --- |
+
+### 初期サンプル行
+
+| Sector_Group | Factor_Group | Enabled |
+| --- | --- | --- |
+| Financials | Value | 1 |
+| Financials | Quality | 1 |
+| Financials | Momentum | 1 |
+| Cyclical | Momentum | 1 |
+| Cyclical | Value | 1 |
+| Growth | Momentum | 1 |
+| Defensive | Quality | 1 |
+| Rate_Sensitive | Low_Risk | 1 |
+## Layer3_Settings
+
+### カラム
+
+| Setting | Value |
+| --- | --- |
+
+### 初期サンプル行
+
+| Setting | Value |
+| --- | --- |
+| Estimation_Scope | country_independent |
+| Training_Mode | rolling_pooled |
+| Interaction_Mode | selected_interactions |
+| Include_Nonlinear_Basis | 1 |
+| Include_Sector_Dummy | 1 |
+| Include_Sector_Factor_Interaction | 1 |
+
+## 8. よくある作成ミス
+
+- 1行目にシート名を置き、4行目にヘッダーを置く
+- 2行目に注意書きを入れる
+- ヘッダー前に空白行を入れる
+- `Factor_Name_JP` や `Factor_Name_EN` を追加する
+- `Enabled` を TRUE/FALSE にする
+- 選択肢を日本語や略称へ変える
+- `Low_Risk` を `Low Risk` に変える
+- `Country` または `Sector` の表記を入力データと一致させない
+- `Source_Lag_Periods` を意図せず0にする
+- `selected` モードなのに `Selected=0` のままにする
+- 説明文をセル結合してデータシートへ追加する
+
+## 9. Copilotへの最終依頼文
+
+以下をCopilotへそのまま渡してください。
+
+> この指示書に完全準拠するPythonスクリプトを作成し、factor_master.xlsxを生成してください。README以外の全シートは必ず1行目をカラムヘッダー、2行目以降を実データとしてください。タイトル行・説明行・空白行をデータシート上部へ追加してはいけません。全シート名、列名、列順、初期データ、選択肢、入力規則、書式を指示書どおりに作成し、最後に検証コードを実行してください。
+
+## v0.12.6 Layer3_Settings追加行
+
+`Layer3_Settings` は1行目を `Setting, Value` とし、次の初期データを2行目以降に作成してください。
+
+| Setting | Value |
+|---|---:|
+| Estimation_Scope | country_independent |
+| Training_Mode | rolling_pooled |
+| Interaction_Mode | selected_interactions |
+| Include_Nonlinear_Basis | 1 |
+| Include_Sector_Dummy | 1 |
+| Include_Sector_Factor_Interaction | 1 |
+| Lookback_Periods | 36 |
+| Minimum_Train_Periods | 12 |
+| Ridge_Validation_Periods | 6 |
+| S07_OLS_Linear_Enabled | 1 |
+| S07_Ridge_Linear_Enabled | 1 |
+| S07_Ridge_Flexible_Enabled | 0 |
+
+`S07_OLS_Linear_Enabled` と `S07_Ridge_Linear_Enabled` は同じ線形基底を用いた正則化有無の比較です。`S07_Ridge_Flexible_Enabled` は3基底Ridgeの補助比較であり、初期値は0です。

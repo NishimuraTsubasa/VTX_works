@@ -1,0 +1,35 @@
+個別銘柄スコアリングモデル v0.12.6 統合完全版 - 全差し替え・実行手順
+
+この版はv0.12.2以降の差分パッチを統合済みです。旧版へパッチを重ねず、フォルダ全体を差し替えてください。
+
+1. 旧プロジェクトを別フォルダへバックアップしてください。
+2. ZIPを展開し、stock_scoring_model_v12_6 をVS Codeで開いてください。
+3. data/input/factors_and_returns.xlsx を実データへ差し替えてください。
+4. data/input/factor_master.xlsx のFactor、国・地域、セクターグループ、交差項設定を確認してください。
+5. Configの出力ON/OFFと学習期間を確認してください。
+
+PowerShell実行順
+
+py -m pip install -e .
+py scripts\validate_inputs.py --config config\model_config.py
+py -m pytest -q
+py scripts\run_pipeline.py --config config\model_config.py
+
+VS Codeデバッグ
+- .vscode/launch.json
+- Debug scoring pipeline
+- エントリーポイント: scripts/run_pipeline.py
+
+主要確認ファイル
+- outputs/analysis_summary.xlsx
+- outputs/stock_scoring_scenario_comparison.pdf
+- outputs/s07_country_diagnostics.xlsx / PDF
+- outputs/s06_s07_model_fit_diagnostics.xlsx / PDF
+- outputs/factor_score_performance_diagnostics.xlsx / PDF
+- outputs/country_factor_score_trends.xlsx / PDF
+
+注意
+- S06・S07は学習期間を必要とするため、全利用可能期間はS00〜S05より短くなります。
+- モデル採用判断はCommonMeanRankIC等の共通OOS指標を使用してください。
+- PDF生成を含む完全実行は、銘柄数・月数・Factor数・国数・有効な診断数に応じて時間がかかります。
+- 同梱入力は合成データです。

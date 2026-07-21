@@ -1,0 +1,14 @@
+Copilotへの依頼:
+
+添付の factor_master_excel_creation_instructions_for_copilot.txt を読み、
+その指示に完全準拠する Python(openpyxl) スクリプトを作成してください。
+
+絶対条件:
+- 出力ファイル名は factor_master.xlsx
+- README以外の全シートは1行目がカラムヘッダー
+- 2行目以降は実データのみ
+- データシート上部にタイトル、説明、空白行、結合セルを追加しない
+- シート名、列名、列順、選択肢を変更しない
+- Factor_Name_JP / Factor_Name_EN は作成しない
+- データ入力規則、書式、固定表示、オートフィルターを設定する
+- 最後に指示書記載の検証コードを実行し、全assertを通す

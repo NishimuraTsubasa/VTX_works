@@ -279,6 +279,8 @@ def build_scenarios(
         "Layer1Selection": layer1_selection,
         "Layer1Coefficients": layer1_coefficients,
         "Layer1FitHistory": layer1_fit_history,
+        "Layer1InputScores": layer1_input,
+        "Layer1Subscores": layer1_subscores,
         "Layer2Weights": layer2_weights,
         "Layer2FactorScores": layer2_scores,
         "Region": pd.DataFrame({"Region": region}),

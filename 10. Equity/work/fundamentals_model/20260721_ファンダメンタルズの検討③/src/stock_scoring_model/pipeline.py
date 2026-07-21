@@ -22,6 +22,10 @@ from .country_factor_score_reporting import (
     write_country_factor_score_excel,
     write_country_factor_score_pdf,
 )
+from .factor_score_performance_reporting import (
+    write_factor_score_performance_excel,
+    write_factor_score_performance_pdf,
+)
 from .reporting import (
     write_analysis_summary,
     write_coefficient_stability_pdf,
@@ -107,6 +111,15 @@ def run_pipeline(config_path: str | Path) -> dict[str, Any]:
             output_dirs["root"] / "country_factor_score_trends.pdf",
             config,
         )
+    if pdf_cfg.get("factor_score_performance_diagnostics", True):
+        write_factor_score_performance_pdf(
+            data,
+            scenarios,
+            diagnostics,
+            all_metas,
+            output_dirs["root"] / "factor_score_performance_diagnostics.pdf",
+            config,
+        )
 
     if config["outputs"].get("analysis_summary_xlsx", True):
         write_analysis_summary(
@@ -144,6 +157,15 @@ def run_pipeline(config_path: str | Path) -> dict[str, Any]:
             data,
             diagnostics.get("Layer2FactorScores", pd.DataFrame()),
             output_dirs["root"] / "country_factor_score_trends.xlsx",
+            config,
+        )
+    if config["outputs"].get("factor_score_performance_diagnostics_xlsx", True):
+        write_factor_score_performance_excel(
+            data,
+            scenarios,
+            diagnostics,
+            all_metas,
+            output_dirs["root"] / "factor_score_performance_diagnostics.xlsx",
             config,
         )
     write_scenario_excels(scenarios, output_dirs["patterns"], config)

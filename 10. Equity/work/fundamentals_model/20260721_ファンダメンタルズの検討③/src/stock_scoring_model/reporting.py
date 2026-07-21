@@ -8,16 +8,42 @@ import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
 from matplotlib import pyplot as plt
+from matplotlib import font_manager
 from matplotlib.backends.backend_pdf import PdfPages
 
 from .evaluation import cumulative_long_short, cumulative_quintile_returns
 from .scenarios import ScenarioResult
 
 
-def _setup_matplotlib() -> None:
-    plt.rcParams["font.family"] = "Noto Sans CJK JP"
+def _setup_matplotlib() -> str:
+    """日本語をPDFへ埋め込めるフォントをOS横断で選択する。
+
+    フォントファイル自体は同梱せず、実行PCにインストール済みの
+    日本語フォントから最初に見つかったものを使用する。
+    """
+    preferred = [
+        "Noto Sans CJK JP",
+        "Noto Sans JP",
+        "Yu Gothic",
+        "YuGothic",
+        "Meiryo",
+        "MS Gothic",
+        "IPAexGothic",
+        "IPAGothic",
+        "Hiragino Sans",
+        "TakaoGothic",
+    ]
+    available = {font.name for font in font_manager.fontManager.ttflist}
+    selected = next((name for name in preferred if name in available), "DejaVu Sans")
+    plt.rcParams["font.family"] = [selected, "DejaVu Sans"]
+    plt.rcParams["font.sans-serif"] = [selected, "DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False
     plt.rcParams["font.size"] = 9
+    # TrueTypeをPDFへ埋め込み、日本語グリフの文字化けを防ぐ。
+    plt.rcParams["pdf.fonttype"] = 42
+    plt.rcParams["ps.fonttype"] = 42
+    plt.rcParams["svg.fonttype"] = "none"
+    return selected
 
 
 def write_quintile_pdf(quintiles: pd.DataFrame, output_path: Path, config: dict[str, Any]) -> None:

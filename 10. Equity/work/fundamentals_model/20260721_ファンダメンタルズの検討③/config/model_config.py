@@ -1,4 +1,4 @@
-"""個別銘柄スコアリングモデル v0.12.3 のユーザー設定。
+"""個別銘柄スコアリングモデル v0.12.5 のユーザー設定。
 
 個別FAの分類・方向・派生特徴量、国-地域対応、セクターグループ、
 交差項の利用可否は data/input/factor_master.xlsx で管理します。
@@ -132,6 +132,23 @@ CONFIG = {
         "trailing_z_periods": 36,
         "minimum_z_periods": 12,
     },
+    "factor_score_performance_diagnostics": {
+        # S06・S07でDate×ISINが共通する純粋OOSサンプル上で評価。
+        "common_oos_scenarios": [
+            "S06_Selected_Factor_Models",
+            "S07_OLS_Linear",
+            "S07_Ridge_Linear",
+        ],
+        "minimum_stocks_per_date": 30,
+        "minimum_stocks_per_group": 15,
+        "minimum_stocks_per_country_sector": 8,
+        "minimum_country_sector_periods": 6,
+        "quantiles": 5,
+        "calibration_bins": 10,
+        "rolling_rank_ic_periods": 12,
+        # PDFへ掲載する単一FAの上位・下位件数。全FA結果はExcelへ保存。
+        "subscore_top_n_pdf": 12,
+    },
     "scenarios": {
         "S00_Current_Direct_EW": True,
         "S01_Missing_Adjusted_EW": True,
@@ -199,6 +216,7 @@ CONFIG = {
         "s07_country_diagnostics_xlsx": True,
         "s06_s07_model_fit_diagnostics_xlsx": True,
         "country_factor_score_trends_xlsx": True,
+        "factor_score_performance_diagnostics_xlsx": True,
         "scenario_excel": {
             "enabled": True,
             "date_scope": "latest",
@@ -229,6 +247,7 @@ CONFIG = {
             "s07_country_diagnostics": True,
             "s06_s07_model_fit_diagnostics": True,
             "country_factor_score_trends": True,
+            "factor_score_performance_diagnostics": True,
         },
     },
 }

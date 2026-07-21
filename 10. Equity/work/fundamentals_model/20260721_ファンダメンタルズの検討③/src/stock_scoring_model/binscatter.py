@@ -14,6 +14,7 @@ from scipy.stats import pearsonr, spearmanr
 from sklearn.linear_model import LinearRegression
 
 from .master import FactorMeta
+from .reporting import _setup_matplotlib as _setup_japanese_matplotlib
 from .preprocessing import make_diagnostic_score
 
 
@@ -273,9 +274,7 @@ def run_binscatter_analysis(
 
 
 def _setup_matplotlib() -> None:
-    plt.rcParams["font.family"] = "Noto Sans CJK JP"
-    plt.rcParams["axes.unicode_minus"] = False
-    plt.rcParams["font.size"] = 9
+    _setup_japanese_matplotlib()
 
 
 def _stats_text(summary: dict[str, Any], config: dict[str, Any]) -> str:

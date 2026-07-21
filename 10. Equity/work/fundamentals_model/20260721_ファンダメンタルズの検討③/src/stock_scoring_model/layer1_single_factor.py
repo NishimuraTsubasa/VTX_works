@@ -15,6 +15,25 @@ class SingleFactorModel:
     def predict(self, x: np.ndarray) -> np.ndarray:
         return self.estimator.predict(design_matrix(x, self.model_name, self.knot))
 
+    @property
+    def intercept_(self) -> float:
+        value = np.asarray(getattr(self.estimator, "intercept_", np.nan)).reshape(-1)
+        return float(value[0]) if len(value) else np.nan
+
+    @property
+    def coef_(self) -> np.ndarray:
+        return np.asarray(getattr(self.estimator, "coef_", []), dtype=float).reshape(-1)
+
+    @property
+    def term_names(self) -> list[str]:
+        if self.model_name == "linear":
+            return ["Linear"]
+        if self.model_name == "piecewise":
+            return ["Linear", "Hinge"]
+        if self.model_name == "quadratic":
+            return ["Linear", "Quadratic"]
+        return [f"Term{idx + 1}" for idx in range(len(self.coef_))]
+
 
 def design_matrix(x: np.ndarray, model_name: str, knot: float = 0.0) -> np.ndarray:
     z = np.asarray(x, dtype=float).reshape(-1)

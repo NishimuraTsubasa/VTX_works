@@ -7,6 +7,7 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 from .layer1_single_factor import fit_single_factor
+from .regression_metrics import regression_metrics
 
 
 COMPLEXITY = {"linear": 1, "piecewise": 2, "quadratic": 2}
@@ -46,7 +47,24 @@ def select_candidate_model(
         )
         pred = model.predict(x_valid)
         mean_ic, se, n = monthly_rank_ic(valid_dates, pred, y_valid)
-        rows.append({"CandidateModel": name, "MeanRankIC": mean_ic, "RankICSE": se, "EvaluationPeriods": n})
+        metrics = regression_metrics(y_valid, pred, feature_count=len(model.coef_))
+        rows.append(
+            {
+                "CandidateModel": name,
+                "MeanRankIC": mean_ic,
+                "RankICSE": se,
+                "EvaluationPeriods": n,
+                "ValidationR2": metrics["R2"],
+                "ValidationAdjustedR2": metrics["AdjustedR2"],
+                "ValidationRMSE": metrics["RMSE"],
+                "ValidationMAE": metrics["MAE"],
+                "ValidationPearson": metrics["Pearson"],
+                "ValidationSpearman": metrics["Spearman"],
+                "ValidationObservations": metrics["ObservationCount"],
+                "ValidationPredictionStd": metrics["PredictionStd"],
+                "ValidationTargetStd": metrics["TargetStd"],
+            }
+        )
     result = pd.DataFrame(rows)
     valid = result[result["MeanRankIC"].notna()].copy()
     if valid.empty:

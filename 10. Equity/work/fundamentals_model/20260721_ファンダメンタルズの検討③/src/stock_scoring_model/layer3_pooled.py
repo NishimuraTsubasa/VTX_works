@@ -6,7 +6,13 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from .regularization import coefficient_frame, fit_ols, fit_penalized_ridge_cv
+from .regularization import (
+    coefficient_frame,
+    fit_ols,
+    fit_penalized_ridge,
+    fit_penalized_ridge_cv,
+)
+from .regression_metrics import prefixed_metrics
 
 
 @dataclass
@@ -25,13 +31,14 @@ def rolling_pooled_prediction(
     data: pd.DataFrame,
     X: pd.DataFrame,
     penalty_multipliers: np.ndarray,
+    standardize_mask: np.ndarray,
     config: dict[str, Any],
     scope_labels: pd.Series,
     scope_name: str,
     target_col: str = "NextMonthReturn",
     eligible_rows: pd.Series | None = None,
 ) -> Layer3Prediction:
-    """過去期間だけで逐次推定し、各時点の純粋なOOS予測を生成する。"""
+    """Fit sequential pooled regressions and retain fit/validation diagnostics."""
     c = config["columns"]
     cfg = config["layer3"]
     dates = sorted(pd.to_datetime(data[c["date"]].dropna().unique()))
@@ -49,7 +56,6 @@ def rolling_pooled_prediction(
         label_mask = scope_labels.astype(str).eq(label)
         for pos, date in enumerate(dates):
             candidate_train_dates = dates[max(0, pos - window):pos]
-            # Layer2 FactorScoreが利用可能な過去時点だけを学習期間として数える。
             available_train_dates = [
                 d for d in candidate_train_dates
                 if bool((label_mask & data[c["date"]].eq(d) & eligible).any())
@@ -61,6 +67,17 @@ def rolling_pooled_prediction(
             if len(test_idx) == 0:
                 continue
 
+            diagnostic_valid_n = max(
+                3,
+                min(
+                    int(cfg.get("ridge_validation_periods", 6)),
+                    max(3, len(available_train_dates) // 4),
+                ),
+            )
+            fit_dates_diag = available_train_dates[:-diagnostic_valid_n]
+            valid_dates_diag = available_train_dates[-diagnostic_valid_n:]
+            validation_metrics: dict[str, object] = {}
+
             if estimator == "ols":
                 train_idx = data.index[label_mask & data[c["date"]].isin(available_train_dates) & eligible]
                 y_train = data.loc[train_idx, target_col]
@@ -70,11 +87,38 @@ def rolling_pooled_prediction(
                 required = max(min_obs, len(X.columns) + 5)
                 if int(train_mask.sum()) < required:
                     continue
-                model = fit_ols(X.loc[train_idx[train_mask]], y_train.loc[train_idx[train_mask]])
+                model = fit_ols(
+                    X.loc[train_idx[train_mask]],
+                    y_train.loc[train_idx[train_mask]],
+                    standardize_mask=standardize_mask,
+                )
                 training_observations = int(train_mask.sum())
-                validation_periods = 0
+
+                if len(fit_dates_diag) >= 3:
+                    fit_idx = data.index[label_mask & data[c["date"]].isin(fit_dates_diag) & eligible]
+                    valid_idx = data.index[label_mask & data[c["date"]].isin(valid_dates_diag) & eligible]
+                    y_fit = data.loc[fit_idx, target_col]
+                    y_valid = data.loc[valid_idx, target_col]
+                    if cfg.get("demean_target_by_date", True):
+                        y_fit = _demean_by_date(y_fit, data.loc[fit_idx, c["date"]])
+                        y_valid = _demean_by_date(y_valid, data.loc[valid_idx, c["date"]])
+                    fit_mask = y_fit.notna() & np.isfinite(X.loc[fit_idx]).all(axis=1)
+                    valid_mask = y_valid.notna() & np.isfinite(X.loc[valid_idx]).all(axis=1)
+                    if fit_mask.sum() > len(X.columns) + 5 and valid_mask.sum() > 0:
+                        diagnostic_model = fit_ols(
+                            X.loc[fit_idx[fit_mask]],
+                            y_fit.loc[fit_idx[fit_mask]],
+                            standardize_mask=standardize_mask,
+                        )
+                        validation_metrics = prefixed_metrics(
+                            y_valid.loc[valid_idx[valid_mask]],
+                            diagnostic_model.predict(X.loc[valid_idx[valid_mask]]),
+                            "Validation",
+                            feature_count=len(X.columns),
+                        )
+                validation_periods = diagnostic_valid_n if validation_metrics else 0
             else:
-                valid_n = max(3, min(int(cfg.get("ridge_validation_periods", 6)), max(3, len(available_train_dates) // 4)))
+                valid_n = diagnostic_valid_n
                 if len(available_train_dates) <= valid_n:
                     continue
                 fit_dates = available_train_dates[:-valid_n]
@@ -98,13 +142,38 @@ def rolling_pooled_prediction(
                     y_valid.loc[valid_idx[valid_mask]],
                     alphas,
                     penalty_multipliers,
+                    standardize_mask=standardize_mask,
+                )
+                diagnostic_model = fit_penalized_ridge(
+                    X.loc[fit_idx[fit_mask]],
+                    y_fit.loc[fit_idx[fit_mask]],
+                    model.alpha,
+                    penalty_multipliers,
+                    standardize_mask=standardize_mask,
+                )
+                validation_metrics = prefixed_metrics(
+                    y_valid.loc[valid_idx[valid_mask]],
+                    diagnostic_model.predict(X.loc[valid_idx[valid_mask]]),
+                    "Validation",
+                    feature_count=len(X.columns),
                 )
                 training_observations = int(fit_mask.sum() + valid_mask.sum())
                 validation_periods = len(valid_dates)
+                train_idx = data.index[label_mask & data[c["date"]].isin(available_train_dates) & eligible]
+                y_train = data.loc[train_idx, target_col]
+                if cfg.get("demean_target_by_date", True):
+                    y_train = _demean_by_date(y_train, data.loc[train_idx, c["date"]])
+                train_mask = y_train.notna() & np.isfinite(X.loc[train_idx]).all(axis=1)
 
             prediction.loc[test_idx] = model.predict(X.loc[test_idx])
             coef_rows.append(coefficient_frame(model, Date=date, Scope=scope_name, ScopeLabel=label))
-            model_rows.append({
+            train_metrics = prefixed_metrics(
+                y_train.loc[train_idx[train_mask]],
+                model.predict(X.loc[train_idx[train_mask]]),
+                "Train",
+                feature_count=len(X.columns),
+            )
+            model_row: dict[str, object] = {
                 "Date": date,
                 "Scope": scope_name,
                 "ScopeLabel": label,
@@ -115,7 +184,11 @@ def rolling_pooled_prediction(
                 "TrainingObservations": training_observations,
                 "FeatureCount": len(model.columns),
                 "FirstAvailableLayer2Date": min(available_train_dates) if available_train_dates else pd.NaT,
-            })
+                "StandardizedFeatureCount": int(np.asarray(standardize_mask, dtype=bool).sum()),
+            }
+            model_row.update(train_metrics)
+            model_row.update(validation_metrics)
+            model_rows.append(model_row)
     return Layer3Prediction(
         prediction=prediction,
         coefficient_history=pd.concat(coef_rows, ignore_index=True) if coef_rows else pd.DataFrame(),

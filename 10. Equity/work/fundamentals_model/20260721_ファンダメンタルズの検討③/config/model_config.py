@@ -1,4 +1,4 @@
-"""個別銘柄スコアリングモデル v0.12.2 のユーザー設定。
+"""個別銘柄スコアリングモデル v0.12.3 のユーザー設定。
 
 個別FAの分類・方向・派生特徴量、国-地域対応、セクターグループ、
 交差項の利用可否は data/input/factor_master.xlsx で管理します。
@@ -88,6 +88,14 @@ CONFIG = {
         "include_country_controls_in_regional": True,
         "demean_target_by_date": True,
         "ridge_alphas": [0.1, 1.0, 10.0],
+        # FactorScore・交差項は学習窓内で標準化。セクターダミーは0/1のまま。
+        "standardize_continuous_features": True,
+        "standardize_feature_types": [
+            "factor_basis",
+            "sector_factor_interaction",
+            "country_deviation",
+        ],
+        "country_diagnostics_minimum_stocks": 15,
         # 部分プーリング：国固有補正を地域共通係数より強く縮小
         "country_deviation_penalty_multiplier": 10.0,
         "country_intercept_penalty_multiplier": 2.0,
@@ -113,6 +121,16 @@ CONFIG = {
                 "nonlinear_basis": ["linear", "piecewise", "quadratic"],
             },
         },
+    },
+    "model_fit_diagnostics": {
+        "calibration_bins": 10,
+        "scatter_max_points": 5000,
+    },
+    "country_factor_score_diagnostics": {
+        # equal / market_cap
+        "weighting": "equal",
+        "trailing_z_periods": 36,
+        "minimum_z_periods": 12,
     },
     "scenarios": {
         "S00_Current_Direct_EW": True,
@@ -178,6 +196,9 @@ CONFIG = {
         "analysis_summary_xlsx": True,
         "layer3_diagnostics_xlsx": True,
         "s07_estimator_comparison_xlsx": True,
+        "s07_country_diagnostics_xlsx": True,
+        "s06_s07_model_fit_diagnostics_xlsx": True,
+        "country_factor_score_trends_xlsx": True,
         "scenario_excel": {
             "enabled": True,
             "date_scope": "latest",
@@ -205,6 +226,9 @@ CONFIG = {
             "coefficient_stability": True,
             "sector_factor_interactions": True,
             "s07_estimator_comparison": True,
+            "s07_country_diagnostics": True,
+            "s06_s07_model_fit_diagnostics": True,
+            "country_factor_score_trends": True,
         },
     },
 }

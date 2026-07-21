@@ -215,7 +215,12 @@ def build_scenarios(
 
     # 第1層：Raw + 派生FAをグローバルで学習。説明変数はWinsorize後Gaussian Rank。
     layer1_input = build_factor_scores(data, config, all_metas, winsorize=True, neutralize=False, rank_transform="gaussian")
-    layer1_subscores, layer1_selection = generate_layer1_oof_subscores(data, layer1_input, all_metas, config)
+    (
+        layer1_subscores,
+        layer1_selection,
+        layer1_coefficients,
+        layer1_fit_history,
+    ) = generate_layer1_oof_subscores(data, layer1_input, all_metas, config)
     layer2_scores, layer2_weights = aggregate_layer2_factor_scores(data, layer1_subscores, all_metas, group_methods, config)
     layer2_prediction = layer2_scores.mean(axis=1, skipna=True)
 
@@ -272,6 +277,8 @@ def build_scenarios(
 
     diagnostics = {
         "Layer1Selection": layer1_selection,
+        "Layer1Coefficients": layer1_coefficients,
+        "Layer1FitHistory": layer1_fit_history,
         "Layer2Weights": layer2_weights,
         "Layer2FactorScores": layer2_scores,
         "Region": pd.DataFrame({"Region": region}),

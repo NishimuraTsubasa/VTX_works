@@ -1,0 +1,29 @@
+個別銘柄スコアリングモデル v0.13.1 検証記録
+
+1. Pythonコード
+- Pythonコンパイル: 正常
+- pytest: 6件すべて成功
+- 日本語フォント解決テスト: 成功
+- 選択フォントが日本語グリフを持つことをcmapで確認
+
+2. 日本語PDF
+- 実ファイルパスからNoto Sans CJK JPを登録して確認
+- outputs/japanese_font_check.pdfを生成
+- outputs/country_factor_score_trends.pdfを再生成
+- outputs/scenario_comparison.pdf等のサンプルPDFを再生成
+- PDFをPNGへレンダリングし、日本語タイトル・凡例説明・軸ラベルが表示されることを目視確認
+- Matplotlibのpdf.fonttype=42でフォントを埋め込み
+- 日本語フォントが検出できない場合は、文字化けしたPDFを作らずRuntimeErrorで停止
+
+3. factor_master.xlsx
+- v0.13.1へ更新
+- README、Column_Dictionary、Option_Dictionaryを確認
+- 数式エラー文字列なし
+- 別PC Copilot向け作成指示書を追加
+
+4. 完全パイプライン
+- この実行環境では、モデル全体のWalk-forward計算が長時間となり制限時間内に完走しなかった
+- モデル計算ロジックの変更はなく、日本語フォント設定とドキュメントのみを変更
+- 同梱Excelはv0.13.0合成データ出力を継承
+- 同梱PDFはv0.13.1の日本語フォント設定で再生成した表示確認用サンプル
+- 実データ環境では、check_pdf_font.pyを実行後に通常パイプラインを実行すること

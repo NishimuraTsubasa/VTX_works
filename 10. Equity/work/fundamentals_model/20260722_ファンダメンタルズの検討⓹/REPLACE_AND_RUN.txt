@@ -1,0 +1,32 @@
+個別銘柄スコアリングモデル v0.13.1 - 全差し替え手順
+
+1. 旧版フォルダへ上書きしないでください。
+2. stock_scoring_model_v13_1 フォルダ全体を新しいプロジェクトルートとして使用してください。
+3. 実データを data/input/factors_and_returns.xlsx へ置換してください。
+4. data/input/factor_master.xlsx のFactor_Code・Factor_Group・Directionを更新してください。
+5. PDFフォントを確認してください。
+
+py scripts\check_pdf_font.py --config config\model_config.py
+
+6. PowerShellで以下を実行してください。
+
+py -m pip install -r requirements.txt
+py -m pip install -e . --no-build-isolation
+py scripts\validate_inputs.py --config config\model_config.py
+py -m pytest -q
+py scripts\run_pipeline.py --config config\model_config.py
+
+主な実行結果:
+outputs/analysis_summary.xlsx
+outputs/scenario_comparison.pdf
+outputs/quintile_cumulative_returns.pdf
+outputs/factor_return_weight_diagnostics.xlsx/pdf
+outputs/aggregate_factor_diagnostics.xlsx/pdf
+outputs/layer3_model_diagnostics.xlsx/pdf
+outputs/country_factor_score_trends.xlsx/pdf
+outputs/model_parameter_summary.xlsx
+outputs/stock_score_patterns/*.xlsx
+
+
+factor_masterを別PCのCopilotで作成する場合:
+docs/factor_master_copilot_instructions.txt

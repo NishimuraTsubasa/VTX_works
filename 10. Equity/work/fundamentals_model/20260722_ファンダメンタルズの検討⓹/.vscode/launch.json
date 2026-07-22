@@ -1,0 +1,38 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug scoring pipeline",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_pipeline.py",
+      "cwd": "${workspaceFolder}",
+      "args": ["--config", "config/model_config.py"],
+      "env": {"PYTHONPATH": "${workspaceFolder}/src"},
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Debug binscatter",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/run_binscatter.py",
+      "cwd": "${workspaceFolder}",
+      "args": ["--config", "config/model_config.py"],
+      "env": {"PYTHONPATH": "${workspaceFolder}/src"},
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Validate inputs",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/validate_inputs.py",
+      "cwd": "${workspaceFolder}",
+      "args": ["--config", "config/model_config.py"],
+      "env": {"PYTHONPATH": "${workspaceFolder}/src"},
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ]
+}

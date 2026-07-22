@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stock-scoring-model"
+version = "0.13.1"
+description = "Raw-factor aggregation and country regression stock scoring model"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "pandas>=2.1",
+  "scipy>=1.11",
+  "scikit-learn>=1.4",
+  "matplotlib>=3.8",
+  "openpyxl>=3.1",
+  "xlsxwriter>=3.2",
+]
+
+[project.scripts]
+stock-scoring-model = "stock_scoring_model.cli:main"
+stock-binscatter = "stock_scoring_model.binscatter_cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

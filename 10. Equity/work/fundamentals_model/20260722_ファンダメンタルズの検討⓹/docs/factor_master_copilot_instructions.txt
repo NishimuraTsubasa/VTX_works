@@ -1,0 +1,401 @@
+================================================================================
+factor_master.xlsx 作成指示書（Copilot向け）
+個別銘柄スコアリングモデル v0.13.1
+================================================================================
+
+【目的】
+この指示書は、別PCのMicrosoft Copilot等に依頼して、モデル入力用の
+factor_master.xlsxをPython（openpyxl）で新規作成するためのものです。
+
+作成するExcelは、v0.13.1のRaw Factor中心モデル専用です。
+旧版に存在した第1層回帰、派生特徴量、Linear / Piecewise / Quadraticの設定シートは
+作成しないでください。
+
+
+================================================================================
+1. Copilotへそのまま貼り付ける依頼文
+================================================================================
+
+以下の文章を、そのままCopilotへ貼り付けてください。
+
+------------------------------ ここから ------------------------------
+
+Python 3.10以上とopenpyxlを使用して、factor_master.xlsxを新規作成してください。
+保存先は、Pythonスクリプトと同じフォルダとしてください。
+
+このExcelは「個別銘柄スコアリングモデル v0.13.1」の入力ファイルです。
+以下の要件をすべて満たす、実行可能なPythonコードを1ファイルで作成してください。
+コードの最後で、作成したExcelをopenpyxlで再度開き、シート名とヘッダーを検証してください。
+
+【重要な構造ルール】
+1. README以外の全シートは、1行目をカラムヘッダー、2行目以降をデータとする。
+2. README以外では、ヘッダーより上にタイトル行、説明行、空白行、結合セルを追加しない。
+3. シート名、列名、列順、設定名は、以下の指定から変更しない。
+4. Factor_Name_JP、Factor_Name_ENは作成しない。Factor_Codeだけで管理する。
+5. 旧版の以下のシートは作成しない。
+   - Feature_Engineering_Control
+   - Derived_Feature_Rules
+   - Factor_Overrides
+   - Group_Overrides
+6. 数式は不要。設定値は値として書き込む。
+7. 不明なFactor値を0で埋めない。factor_masterでは設定行だけを作る。
+8. 作成後、factor_master.xlsxを保存する。
+
+【必要シートと順番】
+1. README
+2. Column_Dictionary
+3. Option_Dictionary
+4. Factor_Master
+5. Group_Settings
+6. Layer2_Settings
+7. Country_Region_Map
+8. Sector_Group_Map
+9. Sector_Factor_Interaction
+10. Layer3_Settings
+
+【共通デザイン】
+- ヘッダー背景色: #1F4E78
+- ヘッダー文字色: 白
+- ヘッダー: 太字、中央揃え
+- ユーザー入力セル背景色: #FFF2CC
+- ユーザー入力セル文字色: #0070C0
+- 全セルに薄い罫線を設定
+- 折り返して全体を表示
+- README以外は1行目を固定
+- フィルターを1行目へ設定
+- 列幅は内容に応じて調整し、極端に広くしない
+
+-------------------------------------------------------------------------------
+Sheet 1: README
+-------------------------------------------------------------------------------
+A1:D1を結合し、次を記載:
+「factor_master.xlsx 設定ガイド v0.13.1」
+
+A2:D2を結合し、次を記載:
+「第1層のリターン回帰を使用せず、前処理済みRaw Factor Scoreを
+Q5-Q1 Factor Return相関で集約するモデルの設定ファイル」
+
+4行目に次のヘッダー:
+Sheet, 編集頻度, 目的, 重要注意
+
+5行目以降に次を記載:
+Factor_Master, 必須, FAコード・Factor Group・方向を設定,
+Factor_Codeは入力データ列名と完全一致
+
+Group_Settings, 必須, 利用するFactor Groupを設定,
+Layer2の集約方法はLayer2_Settingsで共通管理
+
+Layer2_Settings, 通常変更, Raw Score変換とQ5-Q1相関ウェイトを設定,
+時点tのウェイトはDate<tのFactor Returnのみ使用
+
+Country_Region_Map, 国追加時, 国を地域へ割当,
+入力データのcountry表記と完全一致
+
+Sector_Group_Map, セクター追加時, セクターを説明用グループへ割当,
+入力データのsector表記と完全一致
+
+Sector_Factor_Interaction, 必要時, N07で使うSector Group×Factor Groupを指定,
+Sector Dummy主効果は既定で使用しない
+
+Layer3_Settings, 通常変更, 国別OLS/Ridgeの学習期間と有効モデルを設定,
+N05→N06→N07の順で追加効果を比較
+
+-------------------------------------------------------------------------------
+Sheet 2: Column_Dictionary
+-------------------------------------------------------------------------------
+列:
+Sheet, Column, Required, Type, Meaning, Example, Notes
+
+少なくとも以下の項目を記載:
+Factor_Master / Factor_Code / Yes / Text / 入力データ上のFA列名 / FA0101 / 重複不可
+Factor_Master / Factor_Group / Yes / Text / Value・Momentum等の系列 / Value / Group_Settingsに登録
+Factor_Master / Enabled / Yes / Integer / 1=使用、0=不使用 / 1 /
+Factor_Master / Direction / Yes / Integer / 高いほど高リターンなら1、逆なら-1 / 1 / 自動反転しない
+Factor_Master / Base_Weight / Yes / Number / 将来の手動ウェイト用 / 1.0 / v0.13.1本線では未使用
+Group_Settings / Factor_Group / Yes / Text / 利用する系列名 / Momentum /
+Group_Settings / Enabled / Yes / Integer / 1=使用、0=不使用 / 1 /
+Layer2_Settings / Setting / Yes / Text / Layer2設定名 / Equal_Weight_Blend / 名称変更禁止
+Layer2_Settings / Value / Yes / Mixed / 設定値 / 0.5 / Option_Dictionary参照
+Country_Region_Map / Country / Yes / Text / 入力データの国 / Japan / 完全一致
+Country_Region_Map / Region / Yes / Text / 地域プール用分類 / Developed_Asia /
+Country_Region_Map / Enabled / Yes / Integer / 1=使用 / 1 /
+Sector_Group_Map / Sector / Yes / Text / 入力データのセクター / Financials / 完全一致
+Sector_Group_Map / Sector_Group / Yes / Text / 交差項用セクターグループ / Financials /
+Sector_Group_Map / Enabled / Yes / Integer / 1=使用 / 1 /
+Sector_Factor_Interaction / Sector_Group / Yes / Text / 交差項のセクター側 / Financials /
+Sector_Factor_Interaction / Factor_Group / Yes / Text / 交差項のファクター側 / Value /
+Sector_Factor_Interaction / Enabled / Yes / Integer / 1=使用 / 1 /
+Layer3_Settings / Setting / Yes / Text / Layer3設定名 / Lookback_Periods / 名称変更禁止
+Layer3_Settings / Value / Yes / Mixed / 設定値 / 36 / Option_Dictionary参照
+
+-------------------------------------------------------------------------------
+Sheet 3: Option_Dictionary
+-------------------------------------------------------------------------------
+列:
+Setting, Option, Meaning, Recommended use, Caution
+
+以下を記載:
+Raw_Score_Transform / centered_percentile / 月内順位を-1～1へ変換 / 初期本線 / 距離情報は使用しない
+Raw_Score_Transform / gaussian / 月内順位を正規スコアへ変換 / 両端を強調する頑健性分析 / 端の絶対値が大きくなる
+Raw_Score_Transform / zscore / Winsorize後値を月内標準化 / 値の距離情報を残す比較 / 分布形状の影響を受ける
+Raw_Score_Transform / uniform_0_1 / 月内Percentileを0～1へ変換 / 旧仕様比較 / 平均が0.5になる
+Use_Neutralized_Scores / 1 / 国×セクター・サイズ中立化を使用 / S03が良かった場合の本線 /
+Use_Neutralized_Scores / 0 / 中立化しない / 比較分析 / 国・セクター水準差が混入
+Factor_Return_Scope / within_country / 各国内でQ5-Q1を作成し国平均 / 初期本線 / 国ごとの最低銘柄数が必要
+Factor_Return_Scope / global / 全世界でQ5-Q1を作成 / 国間効果を含む比較 / 国配分影響が混入
+Factor_Return_Scope / within_country_sector / 国×セクター内でQ5-Q1を作成 / 純粋な銘柄選択診断 / セル不足に注意
+Equal_Weight_Blend / 0～1 / 1=完全EW、0=相関ウェイトのみ / 0.5 / 高いほど相関調整効果が小さい
+Correlation_Shrinkage / 0～1 / 相関行列を単位行列へ縮小 / 0.3 / 0は不安定になりやすい
+Estimation_Scope / country_independent / 国ごとに別回帰 / 各国50銘柄以上ある場合 /
+Estimation_Scope / regional_pooling / 地域内でプール / 安定性比較 / 国固有係数を持たない
+Training_Mode / rolling_pooled / 過去複数月を縦積み回帰 / 初期本線 /
+Interaction_Mode / selected_interactions / 指定交差項のみ / 初期本線 / 全交差項より過学習を抑制
+
+-------------------------------------------------------------------------------
+Sheet 4: Factor_Master
+-------------------------------------------------------------------------------
+列順を厳守:
+Factor_Code, Factor_Group, Enabled, Direction, Base_Weight
+
+サンプル行:
+FA0101, Value, 1, 1, 1.0
+FA0102, Value, 1, 1, 1.0
+FA1001, Momentum, 1, 1, 1.0
+FA2001, Quality, 1, -1, 1.0
+FA3001, Growth, 1, 1, 1.0
+FA4001, Low_Risk, 1, 1, 1.0
+
+注意:
+- 実運用時はサンプル行を社内FAコードへ置き換える。
+- Factor_Codeはfactors_and_returns.xlsxの列名と完全一致させる。
+- 同じFactor_Codeを重複登録しない。
+- Directionは事前の経済的定義に基づき設定し、過去リターンだけで自動反転しない。
+- EnabledとDirectionにドロップダウンを設定する。
+  Enabled: 0, 1
+  Direction: -1, 1
+
+-------------------------------------------------------------------------------
+Sheet 5: Group_Settings
+-------------------------------------------------------------------------------
+列:
+Factor_Group, Enabled
+
+初期行:
+Value, 1
+Momentum, 1
+Quality, 1
+Growth, 1
+Low_Risk, 1
+
+Enabledに0/1ドロップダウンを設定する。
+
+-------------------------------------------------------------------------------
+Sheet 6: Layer2_Settings
+-------------------------------------------------------------------------------
+列:
+Setting, Value
+
+初期値を次の順番で記載:
+Raw_Score_Transform, centered_percentile
+Use_Neutralized_Scores, 1
+Factor_Return_Scope, within_country
+Factor_Return_Lookback_Periods, 36
+Factor_Return_Minimum_Periods, 12
+Correlation_Shrinkage, 0.30
+Equal_Weight_Blend, 0.50
+Maximum_Factor_Weight, 0.50
+Weight_Smoothing, 0.50
+Effectiveness_Filter_Enabled, 0
+
+ドロップダウン:
+Raw_Score_Transform:
+centered_percentile, gaussian, zscore, uniform_0_1
+
+Use_Neutralized_Scores:
+0, 1
+
+Factor_Return_Scope:
+global, within_country, within_country_sector
+
+Effectiveness_Filter_Enabled:
+0, 1
+
+数値制約:
+- Factor_Return_Lookback_Periods: 12以上の整数
+- Factor_Return_Minimum_Periods: 6以上の整数
+- Correlation_Shrinkage: 0以上1以下
+- Equal_Weight_Blend: 0以上1以下
+- Maximum_Factor_Weight: 0より大きく1以下
+- Weight_Smoothing: 0以上1以下
+
+-------------------------------------------------------------------------------
+Sheet 7: Country_Region_Map
+-------------------------------------------------------------------------------
+列:
+Country, Region, Enabled
+
+サンプル行:
+US, North_America, 1
+Canada, North_America, 1
+UK, Europe, 1
+Germany, Europe, 1
+Japan, Developed_Asia, 1
+
+注意:
+- Countryはfactors_and_returns.xlsxのcountry列と完全一致させる。
+- Enabledに0/1ドロップダウンを設定する。
+
+-------------------------------------------------------------------------------
+Sheet 8: Sector_Group_Map
+-------------------------------------------------------------------------------
+列:
+Sector, Sector_Group, Enabled
+
+サンプル行:
+Financials, Financials, 1
+Industrials, Cyclical, 1
+Consumer, Consumer, 1
+Healthcare, Defensive, 1
+Information Technology, Growth, 1
+Communication Services, Growth, 1
+Utilities, Rate_Sensitive, 1
+Real Estate, Rate_Sensitive, 1
+Technology, Growth, 1
+
+注意:
+- Sectorはfactors_and_returns.xlsxのsector列と完全一致させる。
+- Enabledに0/1ドロップダウンを設定する。
+
+-------------------------------------------------------------------------------
+Sheet 9: Sector_Factor_Interaction
+-------------------------------------------------------------------------------
+列:
+Sector_Group, Factor_Group, Enabled
+
+初期行:
+Financials, Value, 1
+Financials, Quality, 1
+Financials, Momentum, 1
+Cyclical, Momentum, 1
+Cyclical, Value, 1
+Growth, Momentum, 1
+Defensive, Quality, 1
+Rate_Sensitive, Low_Risk, 1
+
+注意:
+- N07_L3_Ridge_SelectedInteractionsで使用する交差項を指定する。
+- Enabledに0/1ドロップダウンを設定する。
+- 不要な交差項を大量に追加しない。
+
+-------------------------------------------------------------------------------
+Sheet 10: Layer3_Settings
+-------------------------------------------------------------------------------
+列:
+Setting, Value
+
+初期値を次の順番で記載:
+Estimation_Scope, country_independent
+Training_Mode, rolling_pooled
+Interaction_Mode, selected_interactions
+Lookback_Periods, 36
+Minimum_Train_Periods, 12
+Ridge_Validation_Periods, 6
+N05_OLS_MainEffects_Enabled, 1
+N06_Ridge_MainEffects_Enabled, 1
+N07_Ridge_Interactions_Enabled, 1
+
+ドロップダウン:
+Estimation_Scope:
+country_independent, regional_pooling, hierarchical_partial_pooling
+
+Training_Mode:
+rolling_pooled, cross_sectional_coefficient_average
+
+Interaction_Mode:
+selected_interactions, all_interactions
+
+各Enabled項目:
+0, 1
+
+数値制約:
+- Lookback_Periods: 12以上の整数
+- Minimum_Train_Periods: 6以上でLookback_Periods以下
+- Ridge_Validation_Periods: 3以上でMinimum_Train_Periods未満
+
+【検証処理】
+保存後にopenpyxl.load_workbookで再度factor_master.xlsxを開き、次を検証してください。
+1. シート名と順番が指定どおりである。
+2. README以外の全シートでA1が指定ヘッダーの先頭列である。
+3. Factor_Masterのヘッダーが完全一致している。
+4. Layer2_SettingsとLayer3_SettingsのSetting名に欠落・重複がない。
+5. 数式エラー文字列（#REF!、#VALUE!、#NAME?、#DIV/0!）がない。
+6. factor_master.xlsxの保存先を画面に表示する。
+
+コードには適切なコメントと例外処理を含めてください。
+
+------------------------------ ここまで ------------------------------
+
+
+================================================================================
+2. Copilotが作成したExcelの手動確認チェックリスト
+================================================================================
+
+□ ファイル名が factor_master.xlsx である
+□ READMEを含めて10シートある
+□ シート順が指定どおりである
+□ Factor_MasterのA1が Factor_Code である
+□ Factor_Masterに上部の空白行・タイトル行がない
+□ Factor_Name_JP / Factor_Name_EN列がない
+□ Layer2_Settingsに10個の設定がある
+□ Layer3_Settingsに9個の設定がある
+□ 旧版の第1層回帰・派生特徴量シートがない
+□ Factor_Codeが入力データのFA列名と完全一致している
+□ CountryとSectorの表記が入力データと完全一致している
+□ EnabledとDirectionがドロップダウンになっている
+□ 数値設定が文字列ではなく数値として保存されている
+□ Excelを開いたときに修復メッセージが表示されない
+
+
+================================================================================
+3. 作成後のモデル側検証コマンド
+================================================================================
+
+factor_master.xlsxを次へ配置します。
+
+data/input/factor_master.xlsx
+
+プロジェクトルートで次を実行してください。
+
+py scripts\validate_inputs.py --config config\model_config.py
+
+正常であれば、その後に本処理を実行します。
+
+py scripts\run_pipeline.py --config config\model_config.py
+
+
+================================================================================
+4. よくある作成ミス
+================================================================================
+
+1. Factor_Masterの前に説明行を追加する
+   → pandasが1行目をヘッダーとして読むためエラーになります。
+
+2. FAコードを数値化する
+   → FA0101の先頭ゼロが落ちるため、必ず文字列で保存します。
+
+3. EnabledをTRUE/FALSEで作る
+   → 本仕様は0/1を使用します。
+
+4. Directionを文字列の「正」「負」で作る
+   → 本仕様は1/-1を使用します。
+
+5. Setting名を日本語へ変更する
+   → Pythonコードと一致しなくなるため、英語の指定名を維持します。
+
+6. 旧版シートを残す
+   → v0.13.1では第1層回帰を停止しているため不要です。
+
+7. Layer2の相関ウェイトで未来のQ5-Q1リターンを使う
+   → Excel設定ではなくコード側で防止していますが、設定説明を変更しないでください。
+
+================================================================================

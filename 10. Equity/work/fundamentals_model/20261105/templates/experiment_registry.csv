@@ -1,0 +1,8 @@
+﻿experiment_id,method,target,shrink_gamma,ridge_lambda,execution_requirement,comparison,status,reason
+B0,fixed_group_allocation,none,1.0,not_applicable,required,no_forecast_benchmark,not_started,specification_only
+B1,historical_mean_spread,spread,0.0,not_applicable,required,primary_predictive_benchmark,not_started,specification_only
+A1,core_bottom_up,spread,1.0,inherit_actual_core,required,primary_vs_B1,not_started,specification_only
+A2,core_bottom_up_shrink05,spread,0.5,inherit_A1,required,primary_vs_B1_and_diagnostic_vs_A1,not_started,specification_only
+C1,direct_spread_ridge,spread,1.0,fixed_1.0,required_if_features_available,primary_vs_B1,not_started,specification_only
+C2,direct_groups_ridge_difference,spread,1.0,fixed_1.0,required_if_features_available,primary_vs_B1,not_started,specification_only
+D1,equal_small_model_forecasts,spread,1.0,fixed_1.0,required_if_all_three_blocks,primary_vs_B1,not_started,specification_only

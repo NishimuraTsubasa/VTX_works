@@ -1,0 +1,159 @@
+{
+  "schema_version": "1.0",
+  "kind": "SPECIFICATION_FOR_NEW_IMPLEMENTATION_NOT_LEGACY_RESEARCHCONFIG",
+  "ready_for_real_data": false,
+  "required_resolutions": [
+    "current_code_path",
+    "core_scope",
+    "core_factor_ids",
+    "core_source_model",
+    "group_membership",
+    "feature_dictionary",
+    "seen_oos_end",
+    "return_kind"
+  ],
+  "project": {
+    "name": "value_gm_fixed_target_comparison",
+    "reference_only_code": "factor_tilt_research.py v1.0.0",
+    "core_scope": "unresolved",
+    "reported_core_factor_count": 13,
+    "reported_full_factor_count": 39,
+    "core_factor_ids": [],
+    "information_source_ids": [],
+    "current_code_path": null,
+    "seen_oos_end": null
+  },
+  "inputs": {
+    "returns": null,
+    "features": null,
+    "predictions": null,
+    "current_manifest": null,
+    "factor_registry": "templates/factor_registry.csv",
+    "group_membership": "templates/group_membership.csv",
+    "feature_dictionary": "templates/feature_dictionary.csv",
+    "core_source_model": null,
+    "source_prediction_column": "prediction"
+  },
+  "target": {
+    "groups": [
+      "VALUE",
+      "GROWTH_MOMENTUM"
+    ],
+    "spread": "VALUE_MINUS_GROWTH_MOMENTUM",
+    "internal_weights": "inherit_and_freeze",
+    "disjoint_membership_required": true,
+    "return_kind": null,
+    "return_unit": "decimal",
+    "fixed_target_across_experiments": true
+  },
+  "validation": {
+    "horizon_months": 1,
+    "min_train_valid_pairs": 60,
+    "train_window": null,
+    "refit_every_month": true,
+    "common_contiguous_oos": true,
+    "current_core_selection": "reproduce_actual_frozen_rule",
+    "new_ridge_lambda": 1.0,
+    "new_model_hyperparameter_search_enabled": false,
+    "optional_inner_min_train": 36,
+    "optional_inner_validation_months": 12,
+    "optional_inner_stride": 1,
+    "optional_tune_every": 12
+  },
+  "forecast": {
+    "winsor_quantile": 0.01,
+    "minimum_feature_coverage": 0.2,
+    "maximum_features_per_block": 2,
+    "maximum_direct_spread_features": 6,
+    "blocks": [
+      "VALUATION",
+      "FUNDAMENTAL",
+      "TREND"
+    ],
+    "trend_definition": "arithmetic sum of returns at t,t-1,...,t-11; include latest known month",
+    "spread_clip_sigma": 3.0,
+    "baseline_mean": "common_training_label_window",
+    "shrinkage_gammas": {
+      "A1": 1.0,
+      "A2": 0.5,
+      "B1": 0.0
+    },
+    "ensemble_weights": [
+      0.3333333333333333,
+      0.3333333333333333,
+      0.3333333333333333
+    ],
+    "ensemble_missing_block_policy": "blocked_no_silent_reweight"
+  },
+  "allocation": {
+    "mode": "level_spread",
+    "anchor_weights": {
+      "VALUE": 0.5,
+      "GROWTH_MOMENTUM": 0.5
+    },
+    "anchor_is_research_assumption_unless_existing_policy": true,
+    "max_absolute_tilt": 0.2,
+    "maximum_active_vol_annual": 0.05,
+    "risk_aversion": 20.0,
+    "anchor_penalty": 0.01,
+    "variance_window_months": 60,
+    "variance_floor": 1e-08,
+    "turnover_penalty_bps": 10.0,
+    "additional_prediction_multiplier": 1.0,
+    "initial_holdings": "zero",
+    "total_risk_optimization": false
+  },
+  "cost": {
+    "inherit_actual_cost_when_available": true,
+    "fallback_assumed_cost_bps": 10.0,
+    "fixed_position_sensitivity_bps": [
+      0.0,
+      10.0,
+      25.0
+    ],
+    "charge_initial_purchase": true,
+    "includes_underlying_internal_turnover": false,
+    "proxy_caveat_required": true
+  },
+  "evaluation": {
+    "primary_strategy_comparisons_vs": "B1",
+    "primary_methods": [
+      "A1",
+      "A2",
+      "C1",
+      "C2",
+      "D1"
+    ],
+    "hac_lags": 3,
+    "hac_sensitivity_lags": [
+      6
+    ],
+    "bootstrap_kind": "paired_circular_moving_block",
+    "bootstrap_block_months": 6,
+    "bootstrap_sensitivity_blocks": [
+      3,
+      12
+    ],
+    "bootstrap_samples": 5000,
+    "seed": 42,
+    "multiple_testing": "Holm_on_primary_family_with_limitations",
+    "periods": [
+      "calendar_year",
+      "fixed_midpoint_halves",
+      "rolling_24_months"
+    ],
+    "two_group_cross_sectional_ic_is_primary": false
+  },
+  "optional_experiments": {
+    "E1_estimated_calibration": false,
+    "E2_residual_correction": false,
+    "E3_feature_selection": false,
+    "E4_within_group_partial_pool": false,
+    "E5_spread_tvp": false
+  },
+  "output": {
+    "root": "results/value_gm/run_<unique_id>",
+    "overwrite_existing": false,
+    "preserve_legacy_results": true
+  }
+}

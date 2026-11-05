@@ -1,0 +1,11 @@
+﻿strategy,baseline,lags,family_size,raw_p,holm_adjusted_p,adjustment_placeholder,status,scope
+A1,B1,3,5,0.876663929146397,1.0,False,evaluated,fixed five current comparisons; NOT past researcher search adjusted
+A2,B1,3,5,0.8648965422209487,1.0,False,evaluated,fixed five current comparisons; NOT past researcher search adjusted
+C1,B1,3,5,0.3231471011801045,1.0,False,evaluated,fixed five current comparisons; NOT past researcher search adjusted
+C2,B1,3,5,0.6649525891990531,1.0,False,evaluated,fixed five current comparisons; NOT past researcher search adjusted
+D1,B1,3,5,0.8648965422209682,1.0,False,evaluated,fixed five current comparisons; NOT past researcher search adjusted
+A1,B1,6,5,0.8724525874852789,1.0,False,evaluated,fixed five current comparisons; NOT past researcher search adjusted
+A2,B1,6,5,0.8609376012813612,1.0,False,evaluated,fixed five current comparisons; NOT past researcher search adjusted
+C1,B1,6,5,0.2882233624626931,1.0,False,evaluated,fixed five current comparisons; NOT past researcher search adjusted
+C2,B1,6,5,0.6060047426181846,1.0,False,evaluated,fixed five current comparisons; NOT past researcher search adjusted
+D1,B1,6,5,0.8609376012813811,1.0,False,evaluated,fixed five current comparisons; NOT past researcher search adjusted

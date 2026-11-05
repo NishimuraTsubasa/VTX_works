@@ -1,0 +1,8 @@
+﻿model,description,status,reason
+B0,固定グループ配分,executed,
+B1,過去平均スプレッド,executed,
+A1,既存／明示的sample予測の集約,executed,
+A2,A1を過去平均へ50%縮小,executed,
+C1,スプレッド直接Ridge,executed,
+C2,グループ直接Ridgeの差,executed,
+D1,3ブロックの等ウェイト予測平均,executed,

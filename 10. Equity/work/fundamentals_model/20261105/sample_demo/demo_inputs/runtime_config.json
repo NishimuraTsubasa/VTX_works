@@ -1,0 +1,75 @@
+{
+  "dataset_kind": "synthetic",
+  "settings": {
+    "min_train": 60,
+    "train_window": null,
+    "trend_months": 12,
+    "ridge_lambda": 1.0,
+    "winsor_quantile": 0.01,
+    "minimum_feature_coverage": 0.2,
+    "spread_clip_sigma": 3.0,
+    "base_value_weight": 0.5,
+    "max_tilt": 0.2,
+    "risk_aversion": 20.0,
+    "anchor_penalty": 0.01,
+    "variance_window": 60,
+    "variance_floor": 1e-08,
+    "max_active_vol_annual": 0.05,
+    "turnover_penalty_bps": 10.0,
+    "cost_bps": 10.0,
+    "cost_scenarios_bps": [
+      0.0,
+      10.0,
+      25.0
+    ],
+    "return_kind": "factor_pnl",
+    "bootstrap_samples": 5000,
+    "bootstrap_blocks": [
+      3,
+      6,
+      12
+    ],
+    "hac_lags": [
+      3,
+      6
+    ],
+    "seed": 42,
+    "core_mode": "sample_local_ridge",
+    "core_source_model": null,
+    "allow_unverified_pit": false,
+    "core_scope": "prediction_targets",
+    "core_factor_ids": [
+      "VALUE_01",
+      "VALUE_02",
+      "VALUE_03",
+      "VALUE_04",
+      "VALUE_05",
+      "VALUE_06",
+      "VALUE_07",
+      "GM_01",
+      "GM_02",
+      "GM_03",
+      "GM_04",
+      "GM_05",
+      "GM_06"
+    ],
+    "feature_orientation_confirmed": true,
+    "feature_columns": {
+      "VALUATION": [
+        "x_value_spread"
+      ],
+      "FUNDAMENTAL": [
+        "x_profitability_change"
+      ]
+    },
+    "oos_start": null,
+    "seen_oos_end": null
+  },
+  "inputs": {
+    "returns": "returns.csv",
+    "features": "features.csv",
+    "membership": "group_membership.csv",
+    "predictions": null
+  },
+  "notes": "SYNTHETIC DEMO INPUTS; not actual market data"
+}

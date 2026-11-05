@@ -1,0 +1,22 @@
+{
+  "source_sha256": "7b0b7fe82f658b24a7ab807c7f865917aa5c603bb853e5c12544c0ebdbb903dd",
+  "original_source_unchanged": true,
+  "original_source_sha256": "6c38b5d687ea38059b2486422da3443816059ef6bbf0d2cef47dfb320b852f06",
+  "self_tests_passed": 39,
+  "synthetic_demo": {
+    "months": 161,
+    "factor_count": 13,
+    "oos_months": 89,
+    "strategies": 7,
+    "csv_files": 18
+  },
+  "docx_pages_rendered_and_visually_reviewed": 12,
+  "real_user_data_validated": false,
+  "cli_paths_checked": [
+    "demo",
+    "run on synthetic CSV/config",
+    "reallocate on stored synthetic predictions",
+    "self-test",
+    "templates"
+  ]
+}

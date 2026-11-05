@@ -1,0 +1,125 @@
+{
+  "program": "value_gm_research",
+  "version": "1.0.0",
+  "created_at_utc": "2026-11-05T14:06:52.998700+00:00",
+  "synthetic": true,
+  "config": {
+    "min_train": 60,
+    "train_window": null,
+    "trend_months": 12,
+    "ridge_lambda": 1.0,
+    "winsor_quantile": 0.01,
+    "minimum_feature_coverage": 0.2,
+    "spread_clip_sigma": 3.0,
+    "base_value_weight": 0.5,
+    "max_tilt": 0.2,
+    "risk_aversion": 20.0,
+    "anchor_penalty": 0.01,
+    "variance_window": 60,
+    "variance_floor": 1e-08,
+    "max_active_vol_annual": 0.05,
+    "turnover_penalty_bps": 10.0,
+    "cost_bps": 10.0,
+    "cost_scenarios_bps": [
+      0.0,
+      10.0,
+      25.0
+    ],
+    "return_kind": "factor_pnl",
+    "bootstrap_samples": 5000,
+    "bootstrap_blocks": [
+      3,
+      6,
+      12
+    ],
+    "hac_lags": [
+      3,
+      6
+    ],
+    "seed": 42,
+    "core_mode": "sample_local_ridge",
+    "core_source_model": null,
+    "allow_unverified_pit": false,
+    "core_scope": "prediction_targets",
+    "core_factor_ids": [
+      "VALUE_01",
+      "VALUE_02",
+      "VALUE_03",
+      "VALUE_04",
+      "VALUE_05",
+      "VALUE_06",
+      "VALUE_07",
+      "GM_01",
+      "GM_02",
+      "GM_03",
+      "GM_04",
+      "GM_05",
+      "GM_06"
+    ],
+    "feature_orientation_confirmed": true,
+    "feature_columns": {
+      "VALUATION": [
+        "x_value_spread"
+      ],
+      "FUNDAMENTAL": [
+        "x_profitability_change"
+      ]
+    },
+    "oos_start": null,
+    "seen_oos_end": null
+  },
+  "input_metadata": {
+    "membership_sha256": "265f39f6939196004c7a63e6b62d152b0eddb12a1f3d58d490011c0aae18923f",
+    "returns_frame_sha256": "46566f8b0920805fdf4d90cb6cdcf7a8e93c920c1f986174e5676e4fbc922e44",
+    "input_return_unit": "decimal",
+    "target_fixed": true,
+    "membership_version": "synthetic_v1",
+    "timestamp_check_passed": true,
+    "pit_independently_verified": false,
+    "selection_history_verified": false,
+    "unused_return_factors": [],
+    "warnings": [],
+    "unavailable_feature_columns": [],
+    "features_frame_sha256": "94cc8f8a0d586f2f44ac0a029dae66c9f584966d7dff902288495234eb413155",
+    "raw_feature_missing_fraction": 0.011944577161968466
+  },
+  "python_version": "3.13.5",
+  "dependencies": {
+    "numpy": "2.3.5",
+    "pandas": "2.2.3",
+    "scipy": "1.17.0"
+  },
+  "script_sha256": "7b0b7fe82f658b24a7ab807c7f865917aa5c603bb853e5c12544c0ebdbb903dd",
+  "factor_count": 13,
+  "factors": [
+    "GM_01",
+    "GM_02",
+    "GM_03",
+    "GM_04",
+    "GM_05",
+    "GM_06",
+    "VALUE_01",
+    "VALUE_02",
+    "VALUE_03",
+    "VALUE_04",
+    "VALUE_05",
+    "VALUE_06",
+    "VALUE_07"
+  ],
+  "first_target_date": "2019-06-30",
+  "last_target_date": "2026-10-31",
+  "oos_months": 89,
+  "strategy_count": 7,
+  "core_sample_is_not_existing_user_model": true,
+  "known_limits": [
+    "no new feature selection or hyperparameter grid",
+    "external saved prediction history not independently verified",
+    "availability timestamp check is not point-in-time restatement audit",
+    "monthly same-close execution approximation",
+    "factor P&L costs are reallocation proxies, not security execution costs",
+    "rf0 mean/vol is not an actual excess-return Sharpe",
+    "inference conditional on observed OOS paths",
+    "P3 TVP / calibration estimation / residual corrections NOT implemented",
+    "already inspected OOS and selected core universe are exploratory, not virgin holdout"
+  ]
+}
